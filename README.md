@@ -42,7 +42,14 @@
 [![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
 
 ---
+### Prompt Patrol Team
 
+- Marnilla-Metwaly
+- jana-hussien
+- laibasameer
+- relghali
+- rymameuri
+- 
 ### Installation
 
 ```bash
