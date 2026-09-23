@@ -44,11 +44,11 @@
 ---
 ### Prompt Patrol Team
 
-- Marnilla-Metwaly
-- jana-hussien
-- laibasameer
-- relghali
-- rymameuri
+- Marnilla Metwaly (Marnilla-Metwaly)
+- Jana Hussien (jana-hussien)
+- Laiba Sameer (laibasameer)
+- Rawan El Ghali (relghali)
+- Rym Ameuri (rymameuri)
   
 ### Installation
 
