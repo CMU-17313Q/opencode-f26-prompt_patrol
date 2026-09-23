@@ -5,7 +5,8 @@ const ignoredDirectories = new Set(["node_modules", ".git", "dist", "build", "ou
 
 const sourceExtensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
 
-const knownDirectoryPurposes: Record<string, string> = {
+/** Plain-language purpose for common directory names, keyed by lowercased name. */
+export const knownDirectoryPurposes: Record<string, string> = {
   src: "main application code",
   lib: "shared library code",
   app: "application entry code",
