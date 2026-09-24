@@ -258,7 +258,96 @@ describe("BashTool", () => {
         (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
       ),
     )
+
+    it.live("captures JavaScript runtime error output from a failed command", () =>
+      Effect.acquireUseRelease(
+        Effect.promise(() => tmpdir()),
+        (tmp) => {
+          reset()
+
+          return withTool(
+            tmp.path,
+            (registry) =>
+              settleTool(
+                registry,
+                call({
+                  command: `bun -e "throw new Error('prompt patrol runtime error')"`,
+                }),
+              ),
+            LayerNode.compile(AppProcess.node),
+          ).pipe(
+            Effect.andThen((settled) =>
+              Effect.sync(() => {
+                expect(settled.output?.structured).toMatchObject({
+                  exit: 1,
+                  truncated: false,
+                })
+
+                expect(settled.output?.content[0]).toMatchObject({
+                  type: "text",
+                  text: expect.stringContaining("prompt patrol runtime error"),
+                })
+
+                expect(settled.output?.content[1]).toMatchObject({
+                  type: "text",
+                  text: expect.stringContaining("Command exited with code 1"),
+                })
+              }),
+            ),
+          )
+        },
+        (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+      ),
+    )
   }
+
+  it.live("captures TypeScript compiler error output from a failed command", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => {
+        reset()
+
+        const source = path.join(tmp.path, "broken.ts")
+        const tsc = path.resolve(import.meta.dir, "../../../node_modules/typescript/bin/tsc")
+
+        return Effect.promise(() => fs.writeFile(source, `const value: number = "wrong"\n`)).pipe(
+          Effect.andThen(
+            withTool(
+              tmp.path,
+              (registry) =>
+                settleTool(
+                  registry,
+                  call({
+                    command: `bun ${tsc} --noEmit broken.ts`,
+                  }),
+                ),
+              LayerNode.compile(AppProcess.node),
+            ),
+          ),
+          Effect.andThen((settled) =>
+            Effect.sync(() => {
+              expect(settled.output?.structured).toMatchObject({
+                exit: 2,
+                truncated: false,
+              })
+
+              const captured = settled.output?.content[0]
+
+              expect(captured).toMatchObject({
+                type: "text",
+              })
+
+              if (captured?.type === "text") {
+                expect(captured.text).toContain("TS2322")
+                expect(captured.text).toContain("broken.ts")
+              }
+            }),
+          ),
+        )
+      },
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ),
+  )
 
   it.live("approves an explicit external workdir before bash execution", () =>
     Effect.acquireUseRelease(
