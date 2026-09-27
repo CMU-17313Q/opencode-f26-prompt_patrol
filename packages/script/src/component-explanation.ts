@@ -1,3 +1,4 @@
+import path from "node:path"
 import type { Component, ComponentMap } from "./component-map"
 import { knownDirectoryPurposes } from "./project-structure"
 
@@ -66,10 +67,14 @@ function purposeFor(name: string): string | undefined {
   return knownDirectoryPurposes[leaf.toLowerCase()]
 }
 
-/** Top-level files such as `package.json` are components too, but they are not folders. */
+/**
+ * Top-level files such as `package.json` are components too, but they are not
+ * folders. Tested with an extension rather than "contains a dot" so that
+ * dot-directories like `.github` are still treated as folders.
+ */
 function displayName(name: string): string {
   const leaf = name.slice(name.lastIndexOf("/") + 1)
-  return leaf.includes(".") ? name : `${name}/`
+  return path.posix.extname(leaf) === "" ? `${name}/` : name
 }
 
 function sizeSentence(component: Component): string {

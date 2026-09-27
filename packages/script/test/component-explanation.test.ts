@@ -109,6 +109,32 @@ describe("explainComponent", () => {
     expect(explainComponent(component, makeMap([component])).headline).toStartWith("package.json - ")
   })
 
+  it("treats a dot-directory as a folder, not a file", () => {
+    const component = { name: ".github", files: 2, dependsOn: [], usedBy: [] }
+
+    expect(explainComponent(component, makeMap([component])).headline).toBe(
+      ".github/ - GitHub Actions workflows and repo automation",
+    )
+  })
+
+  it("treats an unrecognised dot-directory as a folder too", () => {
+    const component = { name: ".husky", files: 1, dependsOn: [], usedBy: [] }
+
+    expect(explainComponent(component, makeMap([component])).headline).toStartWith(".husky/ - ")
+  })
+
+  it("still treats a dotfile with an extension as a file", () => {
+    const component = { name: ".eslintrc.js", files: 1, dependsOn: [], usedBy: [] }
+
+    expect(explainComponent(component, makeMap([component])).headline).toStartWith(".eslintrc.js - ")
+  })
+
+  it("lists three or more related components with an oxford comma", () => {
+    const component = { name: "app", files: 1, dependsOn: ["api", "src", "utils"], usedBy: [] }
+
+    expect(explainComponent(component, makeMap([component])).why).toContain("It builds on api, src, and utils")
+  })
+
   it("suggests the dependency with the fewest dependencies of its own as a starting point", () => {
     const src = { name: "src", files: 3, dependsOn: ["api", "utils"], usedBy: ["app"] }
     const api = { name: "api", files: 2, dependsOn: ["utils"], usedBy: ["src"] }
