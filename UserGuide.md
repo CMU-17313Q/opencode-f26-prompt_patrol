@@ -61,3 +61,49 @@ The button is driven by two functions in [`packages/tui/src/util/error-explanati
   - keeps the end of very long output, where the error is, within the size limit
 
 Together these cover every branch of the logic that decides when the button appears and what it sends, for both agent-run and `!` commands. The UI wiring in `packages/tui/src/routes/session/index.tsx` is a small amount of rendering code that calls these two functions. It is checked by the manual scenarios above and by `bun typecheck`.
+
+## Project structure scanner
+
+The scanner reads a project folder and gives you two things: a file and folder tree, and short purpose guesses for the top-level folders and files, like `src/ - main application code` or `package.json - Node.js package manifest and dependencies`. It only guesses for names it recognizes. A folder called `weird-folder-name/` still shows up in the tree but gets no guess, so it never guesses wrong.
+
+It skips folders that are noise for understanding a project: `node_modules`, `.git`, `dist`, `build`, `out`, `.turbo`, `.cache` and `coverage`.
+
+The code is in [`packages/script/src/project-structure.ts`](packages/script/src/project-structure.ts). `summarizeProjectStructure(root)` returns the tree and the guesses.
+
+### How to use it
+
+In OpenCode, press `Ctrl+P` and choose **View project structure**. The dialog shows the purpose guesses under **Overview** and the tree under **Project files**. This menu option comes from #22 and needs that work merged.
+
+You can also run it on any folder from the repository root:
+
+```sh
+bun -e 'import { summarizeProjectStructure } from "./packages/script/src/project-structure.ts"; const s = await summarizeProjectStructure(process.argv[1]); console.log(s.purposeGuesses.join("\n") + "\n\n" + s.tree)' path/to/project
+```
+
+### How to test it manually
+
+Run it on a few folders with different layouts and check the output:
+
+| Folder                                               | Expected result                                                                                    |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| This repository (`.`)                                | `packages/ - monorepo packages`, `script/ - developer/build scripts`, `.github/ - GitHub Actions…` |
+| A small app with `src/`, `test/` and `node_modules/` | Guesses for `src/` and `test/`. `node_modules` doesn't appear anywhere.                            |
+| A folder with an unusual name, like `my-stuff/`      | `my-stuff/` appears in the tree with no guess.                                                     |
+
+### Automated tests
+
+Tests: [`packages/script/test/project-structure.test.ts`](packages/script/test/project-structure.test.ts)
+
+```sh
+cd packages/script && bun test test/project-structure.test.ts
+```
+
+The issue's acceptance criteria ask for a correct tree and purpose guesses, checked against 3 sample repos with different structures. The tests build those 3 repos in temporary folders and check the exact output:
+
+- a typical JS/TS app (`src/`, `test/`, `docs/`, `package.json`, plus `node_modules/` that must be left out)
+- a monorepo like this one (`apps/`, `packages/`, `scripts/`, `.github/`)
+- a small library with `lib/`, `README.md`, `LICENSE` and an unrecognized folder that must get no guess
+
+Two more tests check that files come back sorted with build output and `node_modules` left out, and that `scanProjectStructure` returns the file list the component relationship mapper (#14) uses.
+
+Running the tests with `--coverage` shows 100% of lines and functions in `project-structure.ts` covered, so every line of the scanner runs in at least one test. These tests also run in CI as part of the `@opencode-ai/script` test task.
