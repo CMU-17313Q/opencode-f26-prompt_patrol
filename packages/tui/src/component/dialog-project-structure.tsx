@@ -1,13 +1,13 @@
 /** @jsxImportSource @opentui/solid */
-import { readdir } from "node:fs/promises"
 import { resolve } from "node:path"
+import { summarizeProjectStructure } from "@opencode-ai/script/project-structure"
 import { createMemo, createResource, onMount } from "solid-js"
 import { useDialog } from "../ui/dialog"
 import { DialogSelect, type DialogSelectOption } from "../ui/dialog-select"
 
 type StructureEntry = {
-  kind: "directory" | "file" | "status"
-  name: string
+  kind: "tree" | "purpose" | "status"
+  text: string
 }
 
 export function DialogProjectStructure(props: { root: string }) {
@@ -15,39 +15,37 @@ export function DialogProjectStructure(props: { root: string }) {
   const root = resolve(props.root)
   const [listing] = createResource(async () => {
     try {
-      const entries = await readdir(root, { withFileTypes: true })
-      return {
-        entries: entries
-          .filter((entry) => entry.isDirectory() || entry.isFile())
-          .map((entry) => ({
-            kind: entry.isDirectory() ? ("directory" as const) : ("file" as const),
-            name: entry.name,
-          }))
-          .sort(
-            (left, right) =>
-              Number(right.kind === "directory") - Number(left.kind === "directory") ||
-              left.name.localeCompare(right.name),
-          ),
-        error: undefined,
-      }
+      return { summary: await summarizeProjectStructure(root), error: undefined }
     } catch (error) {
-      return { entries: [], error: error instanceof Error ? error.message : String(error) }
+      return { summary: undefined, error: error instanceof Error ? error.message : String(error) }
     }
   })
   const options = createMemo<DialogSelectOption<StructureEntry>[]>(() => {
     const result = listing()
     if (listing.loading) {
-      return [{ title: "Loading...", value: { kind: "status", name: "Loading..." }, disabled: true }]
+      return [{ title: "Loading...", value: { kind: "status", text: "Loading..." }, disabled: true }]
     }
     if (result?.error) {
-      return [{ title: result.error, value: { kind: "status", name: result.error }, disabled: true }]
+      return [{ title: result.error, value: { kind: "status", text: result.error }, disabled: true }]
     }
 
-    return (result?.entries ?? []).map((entry) => ({
-      title: entry.kind === "directory" ? `${entry.name}/` : entry.name,
-      category: entry.kind === "directory" ? "Folders" : "Files",
-      value: entry,
-    }))
+    const summary = result?.summary
+    if (!summary || (!summary.tree && summary.purposeGuesses.length === 0)) {
+      return [{ title: "No project files found", value: { kind: "status", text: "No project files found" }, disabled: true }]
+    }
+
+    return [
+      ...summary.purposeGuesses.map((text) => ({
+        title: text,
+        category: "Overview",
+        value: { kind: "purpose" as const, text },
+      })),
+      ...summary.tree.split("\n").map((text) => ({
+        title: text,
+        category: "Project files",
+        value: { kind: "tree" as const, text },
+      })),
+    ]
   })
 
   onMount(() => dialog.setSize("large"))
