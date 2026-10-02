@@ -4,18 +4,19 @@ This guide covers the features the Prompt Patrol team added to OpenCode: how to 
 
 ## Explain an error from the terminal
 
-When a command fails in an OpenCode session, an **Explain this to me** button appears under the error output. Selecting it sends the error to the explanation feature, and the agent replies in plain language with what went wrong, which file and line it points to, and how to fix it.
+When a command fails in an OpenCode session, an **Explain this to me** button appears under the error output. Selecting it sends the error to the agent, which replies in plain language with what went wrong, which file and line it points to, and how to fix it. The explanation feature planned in #9 isn't built yet, so the agent does the explaining for now.
 
 A command counts as failed when it exits with a non-zero code, or when the shell tool reports an error after the command started (for example, it was aborted). Commands that succeed don't get the button. Neither do commands that never ran because permission was denied.
 
 ### How to use it
 
-1. Start OpenCode in a project: `bun dev` from the repository root, or `opencode` if it is installed.
-2. Trigger a failing command in one of two ways:
+1. Start OpenCode from the repository root, pointing it at the project folder you want to work in: `bun dev ~/my-project`. An installed `opencode` won't have this feature.
+2. Connect a model. OpenCode's built-in free models only accept requests from official releases, so a local build needs its own: type `/connect`, choose OpenRouter, paste your team's key, then pick a model ending in `:free` with `/models`.
+3. Trigger a failing command in one of two ways:
    - Ask the agent to run something that fails, e.g. `run bun -e "throw new TypeError('boom')"`.
    - Switch the prompt to shell mode by typing `!` at the start of an empty prompt, then enter a failing command such as `bun -e "throw new TypeError('boom')"`.
-3. The command's output shows in a block with a red **Explain this to me** button under it.
-4. Click the button. The prompt fills with a request containing the command, its exit code, and its error output, then submits it. The agent's explanation appears as the next message.
+4. The command's output shows in a block with a red **Explain this to me** button under it.
+5. Click the button. The prompt fills with a request containing the command, its exit code, and its error output, then submits it. The agent's explanation appears as the next message.
 
 Very long output is trimmed to its last 4,000 characters, since that is where the error message usually is. Terminal color codes are removed before the output is sent.
 
