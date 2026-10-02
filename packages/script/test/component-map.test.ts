@@ -55,4 +55,31 @@ describe("mapComponentRelationships", () => {
 
     expect(result.relationships[0]).toMatchObject({ from: "apps/web", to: "packages/shared", kinds: ["import"] })
   })
+
+  it("resolves scoped workspace package subpath imports", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "component-map-"))
+    temporaryDirectories.push(root)
+    const files = ["apps/web/main.ts", "packages/shared/package.json", "packages/shared/runtime.ts"]
+
+    await Bun.write(path.join(root, "apps/web/main.ts"), 'import { value } from "@course/shared/runtime"\nvalue()')
+    await Bun.write(path.join(root, "packages/shared/package.json"), JSON.stringify({ name: "@course/shared" }))
+    await Bun.write(path.join(root, "packages/shared/runtime.ts"), "export const value = 1")
+
+    const result = await mapComponentRelationships({ root, files })
+
+    expect(result.relationships[0]).toMatchObject({ from: "apps/web", to: "packages/shared", kinds: ["import"] })
+  })
+
+  it("maps relative dynamic imports between components", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "component-map-"))
+    temporaryDirectories.push(root)
+    const files = ["apps/web/main.ts", "packages/shared/runtime.ts"]
+
+    await Bun.write(path.join(root, "apps/web/main.ts"), 'const shared = await import("../../packages/shared/runtime")')
+    await Bun.write(path.join(root, "packages/shared/runtime.ts"), "export const value = 1")
+
+    const result = await mapComponentRelationships({ root, files })
+
+    expect(result.relationships[0]).toMatchObject({ from: "apps/web", to: "packages/shared", kinds: ["import"] })
+  })
 })

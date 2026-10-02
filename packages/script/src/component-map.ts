@@ -51,7 +51,11 @@ export async function mapComponentRelationships(structure: ProjectStructure): Pr
     const from = fileComponents.get(sourceFile)
     if (!from) continue
     const contents = await Bun.file(path.join(structure.root, sourceFile)).text()
-    const imports = [...contents.matchAll(/(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g), ...contents.matchAll(/require\(["']([^"']+)["']\)/g)]
+    const imports = [
+      ...contents.matchAll(/(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g),
+      ...contents.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g),
+      ...contents.matchAll(/require\(["']([^"']+)["']\)/g),
+    ]
 
     for (const match of imports) {
       const specifier = match[1]
@@ -106,9 +110,9 @@ function resolveImport(sourceFile: string, specifier: string, files: readonly st
 }
 
 function resolvePackageImport(specifier: string, components: ReadonlySet<string>, packageNames: ReadonlyMap<string, string>) {
-  const declaredPackage = packageNames.get(specifier)
-  if (declaredPackage) return declaredPackage
   const packageName = specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0]
+  const declaredPackage = packageNames.get(packageName)
+  if (declaredPackage) return declaredPackage
   return [...components].find((component) => component.endsWith(`/${packageName}`) || component === packageName)
 }
 
