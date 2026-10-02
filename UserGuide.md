@@ -84,11 +84,11 @@ bun -e 'import { summarizeProjectStructure } from "./packages/script/src/project
 
 Run it on a few folders with different layouts and check the output:
 
-| Folder                                               | Expected result                                                                                    |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| This repository (`.`)                                | `packages/ - monorepo packages`, `script/ - developer/build scripts`, `.github/ - GitHub Actions…` |
-| A small app with `src/`, `test/` and `node_modules/` | Guesses for `src/` and `test/`. `node_modules` doesn't appear anywhere.                            |
-| A folder with an unusual name, like `my-stuff/`      | `my-stuff/` appears in the tree with no guess.                                                     |
+| Folder                                                               | Expected result                                                                                    |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| This repository (`.`)                                                | `packages/ - monorepo packages`, `script/ - developer/build scripts`, `.github/ - GitHub Actions…` |
+| A small app with `src/`, `test/` and `node_modules/`                 | Guesses for `src/` and `test/`. `node_modules` doesn't appear anywhere.                            |
+| A project containing a folder with an unusual name, like `my-stuff/` | `my-stuff/` appears in the tree with no purpose guess.                                             |
 
 ### Automated tests
 
