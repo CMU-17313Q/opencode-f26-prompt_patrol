@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { resolve } from "node:path"
-import { summarizeProjectStructure } from "@opencode-ai/script/project-structure"
+import { summarizeProjectStructure, type ProjectSummary } from "@opencode-ai/script/project-structure"
 import { createMemo, createResource, onMount } from "solid-js"
 import { useDialog } from "../ui/dialog"
 import { DialogSelect, type DialogSelectOption } from "../ui/dialog-select"
@@ -8,6 +8,37 @@ import { DialogSelect, type DialogSelectOption } from "../ui/dialog-select"
 type StructureEntry = {
   kind: "tree" | "purpose" | "status"
   text: string
+}
+
+export function projectStructureOptions(input: {
+  loading: boolean
+  error?: string
+  summary?: ProjectSummary
+}): DialogSelectOption<StructureEntry>[] {
+  if (input.loading) {
+    return [{ title: "Loading...", value: { kind: "status", text: "Loading..." }, disabled: true }]
+  }
+  if (input.error) {
+    return [{ title: input.error, value: { kind: "status", text: input.error }, disabled: true }]
+  }
+
+  const summary = input.summary
+  if (!summary || (!summary.tree && summary.purposeGuesses.length === 0)) {
+    return [{ title: "No project files found", value: { kind: "status", text: "No project files found" }, disabled: true }]
+  }
+
+  return [
+    ...summary.purposeGuesses.map((text) => ({
+      title: text,
+      category: "Overview",
+      value: { kind: "purpose" as const, text },
+    })),
+    ...summary.tree.split("\n").map((text) => ({
+      title: text,
+      category: "Project files",
+      value: { kind: "tree" as const, text },
+    })),
+  ]
 }
 
 export function DialogProjectStructure(props: { root: string }) {
@@ -20,32 +51,9 @@ export function DialogProjectStructure(props: { root: string }) {
       return { summary: undefined, error: error instanceof Error ? error.message : String(error) }
     }
   })
-  const options = createMemo<DialogSelectOption<StructureEntry>[]>(() => {
+  const options = createMemo(() => {
     const result = listing()
-    if (listing.loading) {
-      return [{ title: "Loading...", value: { kind: "status", text: "Loading..." }, disabled: true }]
-    }
-    if (result?.error) {
-      return [{ title: result.error, value: { kind: "status", text: result.error }, disabled: true }]
-    }
-
-    const summary = result?.summary
-    if (!summary || (!summary.tree && summary.purposeGuesses.length === 0)) {
-      return [{ title: "No project files found", value: { kind: "status", text: "No project files found" }, disabled: true }]
-    }
-
-    return [
-      ...summary.purposeGuesses.map((text) => ({
-        title: text,
-        category: "Overview",
-        value: { kind: "purpose" as const, text },
-      })),
-      ...summary.tree.split("\n").map((text) => ({
-        title: text,
-        category: "Project files",
-        value: { kind: "tree" as const, text },
-      })),
-    ]
+    return projectStructureOptions({ loading: listing.loading, error: result?.error, summary: result?.summary })
   })
 
   onMount(() => dialog.setSize("large"))

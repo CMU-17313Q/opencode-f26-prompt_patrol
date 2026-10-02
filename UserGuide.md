@@ -73,7 +73,7 @@ The code is in [`packages/script/src/project-structure.ts`](packages/script/src/
 
 ### How to use it
 
-In OpenCode, press `Ctrl+P` and choose **View project structure**. The dialog shows the purpose guesses under **Overview** and the tree under **Project files**. This menu option comes from #22 and needs that work merged.
+In an OpenCode TUI session, press `Ctrl+P` and choose **Suggested → View project structure**. The dialog shows purpose guesses under **Overview** and the complete project tree under **Project files**. The view is read-only; selecting an entry does not open it.
 
 You can also run it on any folder from the repository root:
 
@@ -83,7 +83,9 @@ bun -e 'import { summarizeProjectStructure } from "./packages/script/src/project
 
 ### How to test it manually
 
-Run it on a few folders with different layouts and check the output:
+To check the TUI command, open a session, press `Ctrl+P`, and select **Suggested → View project structure**. Confirm the read-only dialog shows the tree and any recognized purpose guesses.
+
+To check the scanner output directly, run it on folders with different layouts and check the output:
 
 | Folder                                                               | Expected result                                                                                    |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -106,5 +108,7 @@ The issue's acceptance criteria ask for a correct tree and purpose guesses, chec
 - a small library with `lib/`, `README.md`, `LICENSE` and an unrecognized folder that must get no guess
 
 Two more tests check that files come back sorted with build output and `node_modules` left out, and that `scanProjectStructure` returns the file list the component relationship mapper (#14) uses.
+
+The scanner tests cover tree generation, purpose guesses, ignored directories, sorting, and the scanner file list. [`packages/tui/test/cli/tui/project-structure.test.ts`](packages/tui/test/cli/tui/project-structure.test.ts) checks that scanner results become the dialog's Overview and Project files rows, ignored folders stay out, and the rows remain read-only. Run this focused test with `cd packages/tui && bun test test/cli/tui/project-structure.test.ts`. The TUI package's full test suite can also be run with `cd packages/tui && bun test --timeout 30000 --only-failures`. The palette command registration and opening interaction are checked manually using the steps above.
 
 Running the tests with `--coverage` shows 100% of lines and functions in `project-structure.ts` covered, so every line of the scanner runs in at least one test. These tests also run in CI as part of the `@opencode-ai/script` test task.
