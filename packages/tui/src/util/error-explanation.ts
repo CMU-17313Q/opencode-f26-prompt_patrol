@@ -12,14 +12,16 @@ export type FailedCommand = {
 
 /**
  * Returns the failed command captured by a shell tool call, or `undefined` when the
- * call is still running or succeeded. A call counts as failed when the command exits
- * with a non-zero code or the tool itself reports an error.
+ * call is still running, succeeded, or was stopped by the user. A call counts as failed
+ * when the command exits with a non-zero code or the tool itself reports an error.
  */
 export function failedCommand(state: ToolState): FailedCommand | undefined {
   if (state.status === "pending" || state.status === "running") return
   const command = typeof state.input.command === "string" ? state.input.command : undefined
   if (!command) return
   const metadata = state.metadata ?? {}
+  // A command the user stopped didn't fail, so there's nothing to explain.
+  if (metadata.interrupted === true) return
   const exit = typeof metadata.exit === "number" ? metadata.exit : undefined
   const captured = typeof metadata.output === "string" ? stripAnsi(metadata.output).trim() : ""
   if (state.status === "error") return { command, exit, output: captured || state.error }

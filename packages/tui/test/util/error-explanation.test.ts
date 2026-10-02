@@ -61,11 +61,23 @@ describe("failedCommand", () => {
       failedCommand({
         status: "error",
         input: { command: "bun app.js" },
-        error: "Tool execution aborted",
+        error: "Tool execution failed",
         metadata: { output: "ReferenceError: x is not defined" },
         time,
       }),
     ).toEqual({ command: "bun app.js", exit: undefined, output: "ReferenceError: x is not defined" })
+  })
+
+  test("ignores commands the user stopped", () => {
+    expect(
+      failedCommand({
+        status: "error",
+        input: { command: "sleep 30" },
+        error: "Tool execution aborted",
+        metadata: { output: "", interrupted: true },
+        time,
+      }),
+    ).toBeUndefined()
   })
 
   test("falls back to the tool error message when nothing was captured", () => {

@@ -6,7 +6,7 @@ This guide covers the features the Prompt Patrol team added to OpenCode: how to 
 
 When a command fails in an OpenCode session, an **Explain this to me** button appears under the error output. Selecting it sends the error to the agent, which replies in plain language with what went wrong, which file and line it points to, and how to fix it. The explanation feature planned in #9 isn't built yet, so the agent does the explaining for now.
 
-A command counts as failed when it exits with a non-zero code, or when the shell tool reports an error after the command started (for example, it was aborted). Commands that succeed don't get the button. Neither do commands that never ran because permission was denied.
+A command counts as failed when it exits with a non-zero code, or when the shell tool reports an error after the command started. Commands that succeed don't get the button. Neither do commands that never ran because permission was denied, or commands you stop yourself, since they didn't fail.
 
 ### How to use it
 
@@ -27,6 +27,7 @@ Very long output is trimmed to its last 4,000 characters, since that is where th
 | `!bun -e "throw new TypeError('boom')"`                          | Button shown. Clicking it sends a prompt containing `TypeError: boom` and `Exit code: 1`. |
 | `!echo "const x: number = 'a'" > b.ts && bunx tsc --noEmit b.ts` | Button shown. The prompt includes the `TS2322` diagnostic and `b.ts(1,7)`.                |
 | `!ls`                                                            | No button (exit code 0).                                                                  |
+| `!sleep 30`, then press Esc twice to stop it                     | No button (you stopped it, so it didn't fail).                                            |
 | Ask the agent to run a command, then deny the permission request | No button (the command never ran).                                                        |
 | Open a subagent session with a failed command                    | No button (subagent views have no prompt to send to).                                     |
 | Long-running failing build (e.g. thousands of lines of output)   | Button shown. The prompt contains the end of the output, starting with `…`.               |
@@ -52,7 +53,7 @@ The button is driven by two functions in [`packages/tui/src/util/error-explanati
 - **`failedCommand`** decides whether a shell tool call should show the button. The tests check that it:
   - detects a JavaScript runtime error (exit 1) and a TypeScript compiler error (exit 2), the two error shapes the team's error-capture work targets
   - strips ANSI color codes so the explanation request gets clean text
-  - does not flag successful commands, commands with no exit code, unfinished commands, or calls with no command
+  - does not flag successful commands, commands with no exit code, unfinished commands, commands the user stopped, or calls with no command
   - treats a tool-level error as a failure, keeping the captured output, or falling back to the error message when no output was captured
 - **`errorExplanationPrompt`** builds what gets sent to the explanation feature. The tests check that it:
   - includes the command, exit code, and full error output in a fixed format
