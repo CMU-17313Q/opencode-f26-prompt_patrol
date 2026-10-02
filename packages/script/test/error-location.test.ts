@@ -70,6 +70,30 @@ describe("error location parser", () => {
         column: 7,
       })
     })
+
+    it("finds the location when a bun error is in a .ts file", () => {
+      const output = ["TypeError: undefined is not a function", "    at run (/repo/src/app.ts:12:5)"].join("\n")
+
+      expect(parseErrorLocation(output)).toEqual({
+        language: "javascript",
+        type: "TypeError",
+        file: "/repo/src/app.ts",
+        line: 12,
+        column: 5,
+      })
+    })
+
+    it("does not pair an error with a later error's location", () => {
+      const output = ["TypeError: first", "RangeError: second", "    at file:///tmp/other.js:9:1"].join("\n")
+
+      expect(parseErrorLocation(output)).toEqual({
+        language: "javascript",
+        type: "TypeError",
+        file: undefined,
+        line: undefined,
+        column: undefined,
+      })
+    })
   })
 
   describe("typescript", () => {
