@@ -73,7 +73,7 @@ The code is in [`packages/script/src/project-structure.ts`](packages/script/src/
 
 ### How to use it
 
-In OpenCode, press `Ctrl+P` and choose **View project structure**. The dialog shows the purpose guesses under **Overview** and the tree under **Project files**. This menu option comes from #22 and needs that work merged.
+In an OpenCode TUI session, press `Ctrl+P`, choose **Suggested**, then select **View project structure**. The read-only dialog shows recognized purpose guesses under **Overview** and the complete project tree under **Project files**. Selecting a row does not open it.
 
 You can also run it on any folder from the repository root:
 
@@ -83,7 +83,9 @@ bun -e 'import { summarizeProjectStructure } from "./packages/script/src/project
 
 ### How to test it manually
 
-Run it on a few folders with different layouts and check the output:
+To manually check the TUI feature, open a session, press `Ctrl+P`, and select **Suggested → View project structure**. Confirm the overview and tree appear, then try selecting a row and confirm the view stays open without navigating.
+
+To manually check the scanner output, run it on folders with different layouts and check the output:
 
 | Folder                                                               | Expected result                                                                                    |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
