@@ -63,6 +63,54 @@ The button is driven by two functions in [`packages/tui/src/util/error-explanati
 
 Together these cover every branch of the logic that decides when the button appears and what it sends, for both agent-run and `!` commands. The UI wiring in `packages/tui/src/routes/session/index.tsx` is a small amount of rendering code that calls these two functions. It is checked by the manual scenarios above and by `bun typecheck`.
 
+## Fix confidence levels
+
+Prompt Patrol can estimate how trustworthy a suggested fix is using several signals, including the size of the diff, number of changed files, verification results, hedging in the explanation, and whether the fix changes the file where the error was reported.
+
+The result is classified as **high**, **medium**, or **low** confidence, with the reasons for that level listed underneath.
+
+### How to test it manually
+
+Run the demo from the repository root:
+
+```sh
+cd packages/script
+bun demo/fix-confidence-demo.ts
+```
+
+The demo shows three scenarios:
+
+- **HIGH** confidence in green
+- **MEDIUM** confidence in yellow
+- **LOW** confidence in red
+
+Each scenario lists the reasons used to calculate the confidence level.
+
+The low-confidence scenario also displays:
+
+```text
+⚠ Double-check this fix before applying
+```
+
+Check that all three levels and their reasons make sense for the supplied scenarios.
+
+### Automated tests
+
+The automated tests are in:
+
+[`packages/script/test/fix-confidence.test.ts`](packages/script/test/fix-confidence.test.ts)
+
+Run them with:
+
+```sh
+cd packages/script
+bun test test/fix-confidence.test.ts
+```
+
+The tests cover high, medium, and low confidence results, a case with no error output, and the signals used by the confidence calculation: diff size, changed-file count, verification status, hedging, and error-file matching.
+
+Together, the automated tests and the three-scenario demo cover the acceptance criteria for issue #21.
+
 ## Project structure scanner
 
 The scanner reads a project folder and gives you two things: a file and folder tree, and short purpose guesses for the top-level folders and files, like `src/ - main application code` or `package.json - Node.js package manifest and dependencies`. It only guesses for names it recognizes. A folder called `weird-folder-name/` still shows up in the tree but gets no guess, so it never guesses wrong.
