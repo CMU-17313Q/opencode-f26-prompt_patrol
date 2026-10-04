@@ -27,6 +27,10 @@
       "outputs": [],
       "passThroughEnv": ["*"]
     },
+    "@opencode-ai/tui#test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "@opencode-ai/core#test": {
       "dependsOn": ["^build"],
       "outputs": []
@@ -40,6 +44,10 @@
       "outputs": []
     },
     "@opencode-ai/session-ui#test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "@opencode-ai/script#test": {
       "dependsOn": ["^build"],
       "outputs": []
     }
