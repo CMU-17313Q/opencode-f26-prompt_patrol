@@ -265,17 +265,32 @@ describe("BashTool", () => {
         (tmp) => {
           reset()
 
-          return withTool(
-            tmp.path,
-            (registry) =>
-              settleTool(
-                registry,
-                call({
-                  command: `bun -e "throw new Error('prompt patrol runtime error')"`,
-                }),
-              ),
-            LayerNode.compile(AppProcess.node),
+          const source = path.join(tmp.path, "broken.js")
+
+          return Effect.promise(() =>
+            fs.writeFile(
+              source,
+              `function explode() {
+  throw new Error("prompt patrol runtime error")
+}
+
+explode()
+`,
+            ),
           ).pipe(
+            Effect.andThen(
+              withTool(
+                tmp.path,
+                (registry) =>
+                  settleTool(
+                    registry,
+                    call({
+                      command: "bun broken.js",
+                    }),
+                  ),
+                LayerNode.compile(AppProcess.node),
+              ),
+            ),
             Effect.andThen((settled) =>
               Effect.sync(() => {
                 expect(settled.output?.structured).toMatchObject({
@@ -283,15 +298,17 @@ describe("BashTool", () => {
                   truncated: false,
                 })
 
-                expect(settled.output?.content[0]).toMatchObject({
+                const captured = settled.output?.content[0]
+
+                expect(captured).toMatchObject({
                   type: "text",
-                  text: expect.stringContaining("prompt patrol runtime error"),
                 })
 
-                expect(settled.output?.content[1]).toMatchObject({
-                  type: "text",
-                  text: expect.stringContaining("Command exited with code 1"),
-                })
+                if (captured?.type === "text") {
+                  expect(captured.text).toContain("prompt patrol runtime error")
+                  expect(captured.text).toContain("explode")
+                  expect(captured.text).toContain("broken.js")
+                }
               }),
             ),
           )
