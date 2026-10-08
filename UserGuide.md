@@ -185,7 +185,7 @@ Together, the automated tests and the three-scenario demo cover the acceptance c
 
 ## Project structure scanner
 
-The scanner reads a project folder and gives you two things: a file and folder tree, and short purpose guesses for the top-level folders and files, like `src/ - main application code` or `package.json - Node.js package manifest and dependencies`. It only guesses for names it recognizes. A folder called `weird-folder-name/` still shows up in the tree but gets no guess, so it never guesses wrong.
+The scanner reads a project folder and gives you two things: a file & folder tree, and short purpose guesses for recognized folders and files, like `src/ - main application code` or `package.json - Node.js package manifest and dependencies`. It only guesses for names it recognizes. A folder with any unfamiliar name still shows up in the tree but gets no guess, so it never guesses wrong.
 
 It skips folders that are noise for understanding a project: `node_modules`, `.git`, `dist`, `build`, `out`, `.turbo`, `.cache` and `coverage`.
 
@@ -193,7 +193,7 @@ The code is in [`packages/script/src/project-structure.ts`](packages/script/src/
 
 ### How to use it
 
-In an OpenCode TUI session, press `Ctrl+P`, choose **Suggested**, then select **View project structure**. The read-only dialog shows recognized purpose guesses under **Overview** and the complete project tree under **Project files**. Selecting a row does not open it.
+In an OpenCode TUI session, press `Ctrl+P`, choose **Suggested**, then select **View project structure**. You'll see the top level of the project, with a short comment next to well-known files and folders. Select a folder to open it. You can go up to 2 levels below the top, so 3 levels in total. Folders at the last level are listed but don't open, and files never open. Select `../` to go back up.
 
 You can also run it on any folder from the repository root:
 
@@ -203,7 +203,7 @@ bun -e 'import { summarizeProjectStructure } from "./packages/script/src/project
 
 ### How to test it manually
 
-To manually check the TUI feature, open a session, press `Ctrl+P`, and select **Suggested → View project structure**. Confirm the overview and tree appear, then try selecting a row and confirm the view stays open without navigating.
+To manually check the TUI feature, open the dialog in this repository. Confirm only the top level shows at first, then open `packages/`, then a folder inside it, and confirm that a folder inside that one (like `packages/tui/src/`) does not open. Confirm `../` takes you back up, and that `node_modules` never appears.
 
 To manually check the scanner output, run it on folders with different layouts and check the output:
 
@@ -215,10 +215,14 @@ To manually check the scanner output, run it on folders with different layouts a
 
 ### Automated tests
 
-Tests: [`packages/script/test/project-structure.test.ts`](packages/script/test/project-structure.test.ts)
+Tests:
+
+- [`packages/script/test/project-structure.test.ts`](packages/script/test/project-structure.test.ts): the scanner and the folder navigation logic
+- [`packages/tui/test/component/dialog-project-structure.test.tsx`](packages/tui/test/component/dialog-project-structure.test.tsx): the dialog itself
 
 ```sh
 cd packages/script && bun test test/project-structure.test.ts
+cd packages/tui && bun test test/component/dialog-project-structure.test.tsx
 ```
 
 The issue's acceptance criteria ask for a correct tree and purpose guesses, checked against 3 sample repos with different structures. The tests build those 3 repos in temporary folders and check the exact output:
@@ -230,6 +234,8 @@ The issue's acceptance criteria ask for a correct tree and purpose guesses, chec
 Two more tests check that files come back sorted with build output and `node_modules` left out, and that `scanProjectStructure` returns the file list the component relationship mapper (#14) uses.
 
 Running the tests with `--coverage` shows 100% of lines and functions in `project-structure.ts` covered, so every line of the scanner runs in at least one test. These tests also run in CI as part of the `@opencode-ai/script` test task.
+
+The navigation tests build a small project in a temporary folder and check what each level shows: folders before files, ignored folders left out, comments on recognized names, and only folders above the depth limit being openable. They also check a missing path, a file path, and an empty project. The dialog tests render the real dialog and press the arrow and Enter keys. They check that only the top level shows first, that Enter opens a folder, that a folder at the depth limit does not open, that `../` goes back up, and that an empty project shows "No project files found". I think this is enough because the rules for what each level contains are tested directly, and the dialog tests confirm they work from the keyboard.
 
 ## Error type and file location parser
 
