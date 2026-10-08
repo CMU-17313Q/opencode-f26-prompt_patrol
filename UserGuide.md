@@ -164,3 +164,51 @@ The issue's acceptance criteria ask for a correct tree and purpose guesses, chec
 Two more tests check that files come back sorted with build output and `node_modules` left out, and that `scanProjectStructure` returns the file list the component relationship mapper (#14) uses.
 
 Running the tests with `--coverage` shows 100% of lines and functions in `project-structure.ts` covered, so every line of the scanner runs in at least one test. These tests also run in CI as part of the `@opencode-ai/script` test task.
+
+## Error type and file location parser
+
+When a command fails, the error output is a block of text. The parser reads that text and pulls out two things: the **error type** (for example `TypeError` or the TypeScript diagnostic `TS2322`) and **where it came from** (file, line and column). It handles JavaScript and TypeScript, the two languages the team's error capture targets. If the output doesn't match a known error shape, it returns nothing instead of guessing.
+
+The code is in [`packages/script/src/error-location.ts`](packages/script/src/error-location.ts). `parseErrorLocation(output)` returns `{ language, type, file?, line?, column? }`, or `undefined`.
+
+- For JavaScript, the type is the first `SomethingError:` line, and the location is the first stack frame (`at ... file:line:column`) in that error's own block, so a type is never paired with a later error's location. A `SyntaxError` with no stack frame still returns its type, with no file or line.
+- For TypeScript, the type is the diagnostic code and the location comes from `file.ts(line,column)`. If `tsc` reports several errors, the first one is used.
+
+The parser is not connected to the UI yet. It is a building block for the explanation features, which will use the type and location to say what went wrong and where.
+
+### How to use it
+
+Run it on any error text from the repository root:
+
+```sh
+bun -e 'import { parseErrorLocation } from "./packages/script/src/error-location.ts"; console.log(parseErrorLocation(process.argv[1]))' "TypeError: boom
+    at file:///tmp/broken.js:3:7"
+```
+
+### How to test it manually
+
+| Input                                                      | Expected result                                                  |
+| ---------------------------------------------------------- | ---------------------------------------------------------------- |
+| `TypeError: boom` followed by `at file:///tmp/broken.js:3:7` | `javascript`, type `TypeError`, file `/tmp/broken.js`, line 3, column 7 |
+| `broken.ts(1,7): error TS2322: Type 'string' is not assignable to type 'number'.` | `typescript`, type `TS2322`, file `broken.ts`, line 1, column 7 |
+| `SyntaxError: Unexpected token` with no stack frame        | `javascript`, type `SyntaxError`, no file or line                |
+| Two `tsc` errors in one output                             | Only the first error is returned                                 |
+| `all good, nothing failed`                                 | `undefined`                                                      |
+
+To try it on a real failure, run `bun -e "throw new TypeError('boom')"`, copy its output, and pass it to `parseErrorLocation`.
+
+### Automated tests
+
+Tests: [`packages/script/test/error-location.test.ts`](packages/script/test/error-location.test.ts)
+
+```sh
+cd packages/script && bun test test/error-location.test.ts
+```
+
+The tests use realistic error output and check the exact result:
+
+- **JavaScript (7 tests):** `TypeError`, `ReferenceError`, `SyntaxError` with no stack frame, `RangeError`, a plain `Error` from an `.mjs` file, an error in a `.ts` file, and a check that an error is not paired with a later error's location.
+- **TypeScript (5 tests):** `TS2322`, `TS2339`, `TS2304`, `TS2554` in a `.tsx` file, and several diagnostics where only the first is used.
+- **No match (1 test):** output with no recognized error shape returns `undefined`.
+
+Running the tests with `--coverage` shows 100% of lines and functions in `error-location.ts` covered, so every line of the parser runs in at least one test. They also run in CI as part of the `@opencode-ai/script` test task.
