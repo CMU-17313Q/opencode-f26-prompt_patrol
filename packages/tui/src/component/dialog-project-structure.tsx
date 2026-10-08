@@ -1,62 +1,87 @@
 /** @jsxImportSource @opentui/solid */
 import { resolve } from "node:path"
-import { summarizeProjectStructure } from "@opencode-ai/script/project-structure"
-import { createMemo, createResource, onMount } from "solid-js"
+import { listStructureLevel, maxStructureDepth, scanProjectTree } from "@opencode-ai/script/project-structure"
+import { createMemo, createResource, createSignal, onMount } from "solid-js"
+import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
-import { DialogSelect, type DialogSelectOption } from "../ui/dialog-select"
+import { DialogSelect, type DialogSelectOption, type DialogSelectRef } from "../ui/dialog-select"
 
-type StructureEntry = {
-  kind: "tree" | "purpose" | "status"
-  text: string
-}
+type StructureValue = { kind: "up" | "folder" | "file"; path: string[] }
 
 export function DialogProjectStructure(props: { root: string }) {
   const dialog = useDialog()
+  const { theme } = useTheme()
   const root = resolve(props.root)
+  const [folder, setFolder] = createSignal<string[]>([])
+  let select: DialogSelectRef<StructureValue> | undefined
   const [listing] = createResource(async () => {
     try {
-      return { summary: await summarizeProjectStructure(root), error: undefined }
+      return { tree: await scanProjectTree(root), error: undefined }
     } catch (error) {
-      return { summary: undefined, error: error instanceof Error ? error.message : String(error) }
+      return { tree: undefined, error: error instanceof Error ? error.message : String(error) }
     }
   })
-  const options = createMemo<DialogSelectOption<StructureEntry>[]>(() => {
-    const result = listing()
-    if (listing.loading) {
-      return [{ title: "Loading...", value: { kind: "status", text: "Loading..." }, disabled: true }]
-    }
-    if (result?.error) {
-      return [{ title: result.error, value: { kind: "status", text: result.error }, disabled: true }]
-    }
 
-    const summary = result?.summary
-    if (!summary || (!summary.tree && summary.purposeGuesses.length === 0)) {
-      return [{ title: "No project files found", value: { kind: "status", text: "No project files found" }, disabled: true }]
-    }
-
+  const entries = createMemo(() => {
+    const tree = listing()?.tree
+    return tree ? listStructureLevel(tree, folder()) : []
+  })
+  const status = createMemo(() => {
+    if (listing.loading) return "Loading..."
+    if (listing()?.error) return listing()?.error
+    if (entries().length === 0) return "No project files found"
+  })
+  const options = createMemo<DialogSelectOption<StructureValue>[]>(() => {
+    const category = folder().length ? `${folder().join("/")}/` : "Project root"
+    const up = folder().slice(0, -1)
     return [
-      ...summary.purposeGuesses.map((text) => ({
-        title: text,
-        category: "Overview",
-        value: { kind: "purpose" as const, text },
-      })),
-      ...summary.tree.split("\n").map((text) => ({
-        title: text,
-        category: "Project files",
-        value: { kind: "tree" as const, text },
+      ...(folder().length
+        ? [
+            {
+              title: "../",
+              description: up.length ? `Back to ${up.join("/")}/` : "Back to project root",
+              category,
+              value: { kind: "up" as const, path: up },
+              onSelect: () => open(up),
+            },
+          ]
+        : []),
+      ...entries().map((entry) => ({
+        title: entry.kind === "folder" ? `${entry.name}/` : entry.name,
+        description: entry.purpose,
+        category,
+        value: { kind: entry.kind, path: entry.path },
+        onSelect: entry.openable ? () => open(entry.path) : undefined,
       })),
     ]
   })
+
+  // Keep one list and move the highlight back to the first row, instead of remounting it: a remounted
+  // list would receive the same Enter keypress and immediately select its own first row (`../`).
+  function open(path: string[]) {
+    setFolder(path)
+    const first = options()[0]
+    if (first) select?.moveTo(first.value)
+  }
 
   onMount(() => dialog.setSize("large"))
 
   return (
     <DialogSelect
       title="Project structure"
-      footer={<text>{root}</text>}
-      locked
+      footer={
+        <text>
+          {root} - folders open up to {maxStructureDepth} levels deep
+        </text>
+      }
       renderFilter={false}
-      options={options()}
+      ref={(ref) => (select = ref)}
+      emptyView={
+        <box paddingLeft={4} paddingRight={4} paddingTop={1}>
+          <text fg={theme.textMuted}>{status()}</text>
+        </box>
+      }
+      options={status() ? [] : options()}
     />
   )
 }

@@ -125,6 +125,48 @@ export async function summarizeProjectStructure(root: string): Promise<ProjectSu
   }
 }
 
+/** Folders can be opened this many levels below the top level of the project. */
+export const maxStructureDepth = 2
+
+export type StructureEntry = {
+  name: string
+  kind: "folder" | "file"
+  /** Names from the project root down to this entry, including its own. */
+  path: string[]
+  purpose?: string
+  /** False for files and for folders already at the depth limit. */
+  openable: boolean
+}
+
+/** Scans a repo and returns its full directory tree, skipping the same noise directories as the file scan. */
+export async function scanProjectTree(root: string): Promise<ProjectTree> {
+  return buildTree(await listProjectFiles(root))
+}
+
+/**
+ * Lists the entries directly inside `folder` (the project root when empty),
+ * folders first and then files, each sorted by name. Returns nothing for a path
+ * that does not exist or points at a file.
+ */
+export function listStructureLevel(tree: ProjectTree, folder: readonly string[] = []): StructureEntry[] {
+  const node = folder.reduce<ProjectTree | null | undefined>((current, name) => current?.[name], tree)
+  if (!node) return []
+
+  return Object.keys(node)
+    .map((name): StructureEntry => {
+      const kind = node[name] === null ? "file" : "folder"
+      const purposes = kind === "file" ? knownFilePurposes : knownDirectoryPurposes
+      return {
+        name,
+        kind,
+        path: [...folder, name],
+        purpose: purposes[name.toLowerCase()],
+        openable: kind === "folder" && folder.length < maxStructureDepth,
+      }
+    })
+    .sort((a, b) => (a.kind === b.kind ? (a.name < b.name ? -1 : 1) : a.kind === "folder" ? -1 : 1))
+}
+
 function buildTree(files: readonly string[]): ProjectTree {
   const root: ProjectTree = {}
   for (const file of files) {
