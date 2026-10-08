@@ -63,6 +63,69 @@ The button is driven by two functions in [`packages/tui/src/util/error-explanati
 
 Together these cover every branch of the logic that decides when the button appears and what it sends, for both agent-run and `!` commands. The UI wiring in `packages/tui/src/routes/session/index.tsx` is a small amount of rendering code that calls these two functions. It is checked by the manual scenarios above and by `bun typecheck`.
 
+## Fix confidence level
+
+When the agent suggests a fix for a failed command, `computeFixConfidence` rates how much to trust it as **high**, **medium** or **low**, and lists the reasons for that rating. It does not look at whether the fix is correct, only at signs that make a fix more or less likely to be: how big it is, whether it was verified, whether the explanation hedges, and whether it changes the file where the error was reported.
+
+The code is in [`packages/script/src/fix-confidence.ts`](packages/script/src/fix-confidence.ts). It takes `{ diff, explanation, verificationPassed?, errorOutput? }` and returns `{ level, reasons }`. Every input gets at least one reason, so the rating always explains itself.
+
+Each signal adds or subtracts points, and the total picks the level (3 or more is high, 0 to 2 is medium, below 0 is low):
+
+| Signal                                       | Points                                                         |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| Diff size                                    | up to 10 changed lines +1, 11 to 50 is 0, more than 50 is -1, an empty diff is -1 |
+| Files changed                                | 1 file +1, 2 to 3 files 0, more than 3 files -1                |
+| Verification (tests, typecheck, rerun)       | passed +2, failed -2, not run -1                               |
+| Hedging in the explanation ("might", "possibly", "try this", and similar) | -1 for each hedging phrase                     |
+| Error location, from `parseErrorLocation`    | fix changes the reported file +2, changes other files -2, unparseable output -1, no error output 0 |
+
+The point values and cutoffs are the team's own choices, since the issue didn't define them.
+
+The function is not connected to the UI yet. It is a building block for showing a confidence rating next to a suggested fix.
+
+### How to use it
+
+Run it from the repository root on a fix of your own:
+
+```sh
+bun -e 'import { computeFixConfidence } from "./packages/script/src/fix-confidence.ts"; console.log(computeFixConfidence({ diff: "--- a/src/app.ts\n+++ b/src/app.ts\n@@ -1 +1 @@\n-old\n+new", explanation: "The variable was typed as number but assigned a string.", verificationPassed: true, errorOutput: "src/app.ts(3,5): error TS2322: Type string is not assignable to type number." }))'
+```
+
+### How to test it manually
+
+Change one input at a time in the command above and check the result:
+
+| Change                                                                     | Expected result                                                           |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| None (the command as written)                                              | `high`, with a reason saying it changes `src/app.ts`, where the TS2322 was reported |
+| Set `verificationPassed` to `false`                                        | `medium`, with the reason `Verification failed after the fix`             |
+| Remove `verificationPassed`                                                | Still `high` (it drops to exactly 3 points), with the reason `The fix was not verified` |
+| Change the explanation to `This might work, you could possibly try this.`  | Still `high` (it drops to exactly 3 points), with a reason naming "might", "possibly" and "try this" |
+| Do both of the two changes above                                           | `medium`, with both reasons                                               |
+| Change `src/app.ts` in the diff to `src/other.ts`                          | `medium`, with the reason `Does not change src/app.ts, where the TS2322 was reported` |
+| Remove `errorOutput`                                                       | Still `high`, with the reason `No error output was provided`              |
+| Set `diff` and `explanation` to empty strings                              | `low`, with at least one reason                                           |
+
+### Automated tests
+
+Tests: [`packages/script/test/fix-confidence.test.ts`](packages/script/test/fix-confidence.test.ts)
+
+```sh
+cd packages/script && bun test test/fix-confidence.test.ts
+```
+
+The 7 tests check:
+
+- a small, verified fix on the reported file is high, and its reason names the error type
+- a large, unverified, hedging fix in other files is low, with reasons for the hedging and for not being verified
+- a fix whose verification failed is medium, with the failed-verification reason
+- a result is still returned when there is no error output
+- error output that cannot be parsed is flagged in the reasons
+- empty input still returns at least one reason and a low level
+- an absolute error path in the output matches a relative path in the diff
+
+Running the tests with `--coverage` shows 100% of lines and functions in `fix-confidence.ts` covered. The tests check the level for the high, medium and low cases and that the expected reasons appear, but they don't pin every point value, so small tuning changes may not fail a test. They also run in CI as part of the `@opencode-ai/script` test task.
+
 ## Project structure scanner
 
 The scanner reads a project folder and gives you two things: a file and folder tree, and short purpose guesses for the top-level folders and files, like `src/ - main application code` or `package.json - Node.js package manifest and dependencies`. It only guesses for names it recognizes. A folder called `weird-folder-name/` still shows up in the tree but gets no guess, so it never guesses wrong.
