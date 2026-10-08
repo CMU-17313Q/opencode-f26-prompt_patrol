@@ -125,13 +125,13 @@ The code is in [`packages/script/src/fix-confidence.ts`](packages/script/src/fix
 
 Each signal adds or subtracts points, and the total picks the level (3 or more is high, 0 to 2 is medium, below 0 is low):
 
-| Signal                                       | Points                                                         |
-| -------------------------------------------- | -------------------------------------------------------------- |
-| Diff size                                    | up to 10 changed lines +1, 11 to 50 is 0, more than 50 is -1, an empty diff is -1 |
-| Files changed                                | 1 file +1, 2 to 3 files 0, more than 3 files -1                |
-| Verification (tests, typecheck, rerun)       | passed +2, failed -2, not run -1                               |
-| Hedging in the explanation ("might", "possibly", "try this", and similar) | -1 for each hedging phrase                     |
-| Error location, from `parseErrorLocation`    | fix changes the reported file +2, changes other files -2, unparseable output -1, no error output 0 |
+| Signal                                                                    | Points                                                                                             |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Diff size                                                                 | up to 10 changed lines +1, 11 to 50 is 0, more than 50 is -1, an empty diff is -1                  |
+| Files changed                                                             | 1 file +1, 2 to 3 files 0, more than 3 files -1                                                    |
+| Verification (tests, typecheck, rerun)                                    | passed +2, failed -2, not run -1                                                                   |
+| Hedging in the explanation ("might", "possibly", "try this", and similar) | -1 for each hedging phrase                                                                         |
+| Error location, from `parseErrorLocation`                                 | fix changes the reported file +2, changes other files -2, unparseable output -1, no error output 0 |
 
 The point values and cutoffs are the team's own choices, since the issue didn't define them.
 
@@ -149,16 +149,16 @@ bun -e 'import { computeFixConfidence } from "./packages/script/src/fix-confiden
 
 Change one input at a time in the command above and check the result:
 
-| Change                                                                     | Expected result                                                           |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| None (the command as written)                                              | `high`, with a reason saying it changes `src/app.ts`, where the TS2322 was reported |
-| Set `verificationPassed` to `false`                                        | `medium`, with the reason `Verification failed after the fix`             |
-| Remove `verificationPassed`                                                | Still `high` (it drops to exactly 3 points), with the reason `The fix was not verified` |
-| Change the explanation to `This might work, you could possibly try this.`  | Still `high` (it drops to exactly 3 points), with a reason naming "might", "possibly" and "try this" |
-| Do both of the two changes above                                           | `medium`, with both reasons                                               |
-| Change `src/app.ts` in the diff to `src/other.ts`                          | `medium`, with the reason `Does not change src/app.ts, where the TS2322 was reported` |
-| Remove `errorOutput`                                                       | Still `high`, with the reason `No error output was provided`              |
-| Set `diff` and `explanation` to empty strings                              | `low`, with at least one reason                                           |
+| Change                                                                    | Expected result                                                                                      |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| None (the command as written)                                             | `high`, with a reason saying it changes `src/app.ts`, where the TS2322 was reported                  |
+| Set `verificationPassed` to `false`                                       | `medium`, with the reason `Verification failed after the fix`                                        |
+| Remove `verificationPassed`                                               | Still `high` (it drops to exactly 3 points), with the reason `The fix was not verified`              |
+| Change the explanation to `This might work, you could possibly try this.` | Still `high` (it drops to exactly 3 points), with a reason naming "might", "possibly" and "try this" |
+| Do both of the two changes above                                          | `medium`, with both reasons                                                                          |
+| Change `src/app.ts` in the diff to `src/other.ts`                         | `medium`, with the reason `Does not change src/app.ts, where the TS2322 was reported`                |
+| Remove `errorOutput`                                                      | Still `high`, with the reason `No error output was provided`                                         |
+| Set `diff` and `explanation` to empty strings                             | `low`, with at least one reason                                                                      |
 
 ### Automated tests
 
@@ -168,7 +168,7 @@ Tests: [`packages/script/test/fix-confidence.test.ts`](packages/script/test/fix-
 cd packages/script && bun test test/fix-confidence.test.ts
 ```
 
-The 7 tests check:
+The 9 tests check:
 
 - a small, verified fix on the reported file is high, and its reason names the error type
 - a large, unverified, hedging fix in other files is low, with reasons for the hedging and for not being verified
@@ -177,8 +177,11 @@ The 7 tests check:
 - error output that cannot be parsed is flagged in the reasons
 - empty input still returns at least one reason and a low level
 - an absolute error path in the output matches a relative path in the diff
+- the diff-size signal is reported for a moderate-size diff
+- the changed-file-count signal is reported when a fix changes multiple files
 
 Running the tests with `--coverage` shows 100% of lines and functions in `fix-confidence.ts` covered. The tests check the level for the high, medium and low cases and that the expected reasons appear, but they don't pin every point value, so small tuning changes may not fail a test. They also run in CI as part of the `@opencode-ai/script` test task.
+Together, the automated tests and the three-scenario demo cover the acceptance criteria for issue #21.
 
 ## Project structure scanner
 
@@ -250,13 +253,13 @@ bun -e 'import { parseErrorLocation } from "./packages/script/src/error-location
 
 ### How to test it manually
 
-| Input                                                      | Expected result                                                  |
-| ---------------------------------------------------------- | ---------------------------------------------------------------- |
-| `TypeError: boom` followed by `at file:///tmp/broken.js:3:7` | `javascript`, type `TypeError`, file `/tmp/broken.js`, line 3, column 7 |
-| `broken.ts(1,7): error TS2322: Type 'string' is not assignable to type 'number'.` | `typescript`, type `TS2322`, file `broken.ts`, line 1, column 7 |
-| `SyntaxError: Unexpected token` with no stack frame        | `javascript`, type `SyntaxError`, no file or line                |
-| Two `tsc` errors in one output                             | Only the first error is returned                                 |
-| `all good, nothing failed`                                 | `undefined`                                                      |
+| Input                                                                             | Expected result                                                         |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `TypeError: boom` followed by `at file:///tmp/broken.js:3:7`                      | `javascript`, type `TypeError`, file `/tmp/broken.js`, line 3, column 7 |
+| `broken.ts(1,7): error TS2322: Type 'string' is not assignable to type 'number'.` | `typescript`, type `TS2322`, file `broken.ts`, line 1, column 7         |
+| `SyntaxError: Unexpected token` with no stack frame                               | `javascript`, type `SyntaxError`, no file or line                       |
+| Two `tsc` errors in one output                                                    | Only the first error is returned                                        |
+| `all good, nothing failed`                                                        | `undefined`                                                             |
 
 To try it on a real failure, run `bun -e "throw new TypeError('boom')"`, copy its output, and pass it to `parseErrorLocation`.
 
