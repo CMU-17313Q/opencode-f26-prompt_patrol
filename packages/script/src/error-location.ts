@@ -51,7 +51,13 @@ function parseTypeScriptError(output: string): ParsedError | undefined {
 function parseJavaScriptError(output: string): ParsedError | undefined {
   const typeMatch = output.match(/^(\w*Error):/m)
   if (!typeMatch) return undefined
-  const locationMatch = output.match(/at\s+(?:.*?\()?(?:file:\/\/)?([^\s()]+\.[mc]?js):(\d+):(\d+)\)?/)
+  // Look for the location only within this error's own block (up to the next error line) so its name
+  // and file/line always come from the same error.
+  const rest = output.slice(typeMatch.index! + typeMatch[0].length)
+  const nextError = rest.search(/^\w*Error:/m)
+  const locationMatch = (nextError === -1 ? rest : rest.slice(0, nextError)).match(
+    /at\s+(?:.*?\()?(?:file:\/\/)?([^\s()]+\.(?:[mc]?[jt]s|[jt]sx)):(\d+):(\d+)\)?/,
+  )
   return {
     language: "javascript",
     type: typeMatch[1],
