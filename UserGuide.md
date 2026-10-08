@@ -2,6 +2,60 @@
 
 This guide covers the features the Prompt Patrol team added to OpenCode: how to use each one, how to test it by hand, and where its automated tests are.
 
+## Error output capture
+
+OpenCode preserves useful error output when a command fails. This allows later features to inspect the actual runtime or compiler error instead of losing the failure information.
+
+### How to test it manually
+
+Start OpenCode from the repository root and ask the agent to run commands that intentionally fail.
+
+For a JavaScript runtime error, ask it to run:
+
+```sh
+bun -e 'function explode() { throw new Error("prompt patrol runtime error") } explode()'
+```
+
+The failed command output should still include the runtime error and its stack trace instead of losing the error information.
+
+For a TypeScript compiler error, ask it to run:
+
+```sh
+echo 'const value: number = "wrong"' > broken.ts && bunx tsc --noEmit broken.ts
+```
+
+The command creates a temporary `broken.ts` file in the current project directory and compiles it. The failed command output should include the TypeScript diagnostic, such as `TS2322`, the file name `broken.ts`, and a non-zero exit code.
+
+After testing, remove the temporary file:
+
+```sh
+rm broken.ts
+```
+
+### Automated tests
+
+The automated tests are in:
+
+[`packages/core/test/tool-bash.test.ts`](packages/core/test/tool-bash.test.ts)
+
+Run them with:
+
+```sh
+cd packages/core
+bun test test/tool-bash.test.ts
+```
+
+The relevant tests are:
+
+- `captures JavaScript runtime error output from a failed command`
+- `captures TypeScript compiler error output from a failed command`
+
+The JavaScript test runs a real failing program and verifies that the error message, stack information, source file, and failed exit code are preserved.
+
+The TypeScript test runs the real TypeScript compiler on invalid code and verifies that the compiler diagnostic, source file, and failed exit code are preserved.
+
+Together, these tests cover the acceptance criteria for issue #7 by verifying a runtime stack trace and a compiler error from two supported languages.
+
 ## Explain an error from the terminal
 
 When a command fails in an OpenCode session, an **Explain this to me** button appears under the error output. Selecting it sends the error to the agent, which replies in plain language with what went wrong, which file and line it points to, and how to fix it. The explanation feature planned in #9 isn't built yet, so the agent does the explaining for now.
