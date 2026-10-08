@@ -35,15 +35,27 @@ export async function mapComponentRelationships(structure: ProjectStructure): Pr
 
   for (const file of files) {
     const component = componentFor(file)
+    if (!component) continue
     components.set(component, [...(components.get(component) ?? []), file])
   }
 
-  const fileComponents = new Map(files.map((file) => [file, componentFor(file)]))
+  const fileComponents = new Map(files.flatMap((file) => {
+    const component = componentFor(file)
+    return component ? [[file, component] as const] : []
+  }))
   const componentNames = new Set(components.keys())
   const packageNames = new Map<string, string>()
+  const packageManifests = new Map<string, Record<string, unknown>>()
   for (const packageFile of files.filter((file) => path.posix.basename(file) === "package.json")) {
-    const packageData = await Bun.file(path.join(structure.root, packageFile)).json()
-    if (typeof packageData.name === "string") packageNames.set(packageData.name, fileComponents.get(packageFile) ?? componentFor(packageFile))
+    const component = fileComponents.get(packageFile)
+    if (!component) continue
+
+    const packageValue = await Bun.file(path.join(structure.root, packageFile)).json().catch(() => undefined)
+    const packageData = record(packageValue)
+    if (!packageData) continue
+
+    packageManifests.set(packageFile, packageData)
+    if (typeof packageData.name === "string") packageNames.set(packageData.name, component)
   }
   const relationships = new Map<string, { kinds: Set<"import" | "workspace-dependency">; evidence: Set<string> }>()
 
@@ -51,13 +63,17 @@ export async function mapComponentRelationships(structure: ProjectStructure): Pr
     const from = fileComponents.get(sourceFile)
     if (!from) continue
     const contents = await Bun.file(path.join(structure.root, sourceFile)).text()
-    const imports = [...contents.matchAll(/(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g), ...contents.matchAll(/require\(["']([^"']+)["']\)/g)]
+    const imports = [
+      ...contents.matchAll(/(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g),
+      ...contents.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g),
+      ...contents.matchAll(/require\(["']([^"']+)["']\)/g),
+    ]
 
     for (const match of imports) {
       const specifier = match[1]
       if (!specifier) continue
       const targetFile = resolveImport(sourceFile, specifier, files)
-      const to = targetFile ? fileComponents.get(targetFile) : resolvePackageImport(specifier, componentNames, packageNames)
+      const to = targetFile ? fileComponents.get(targetFile) : resolvePackageImport(specifier, packageNames)
       if (!to || to === from) continue
       addRelationship(relationships, from, to, "import", `${sourceFile} -> ${specifier}`)
     }
@@ -66,10 +82,15 @@ export async function mapComponentRelationships(structure: ProjectStructure): Pr
   for (const packageFile of files.filter((file) => path.posix.basename(file) === "package.json")) {
     const from = fileComponents.get(packageFile)
     if (!from) continue
-    const contents = await Bun.file(path.join(structure.root, packageFile)).json()
-    const dependencies = Object.keys({ ...contents.dependencies, ...contents.devDependencies, ...contents.peerDependencies })
+    const contents = packageManifests.get(packageFile)
+    if (!contents) continue
+    const dependencies = Object.keys({
+      ...record(contents.dependencies),
+      ...record(contents.devDependencies),
+      ...record(contents.peerDependencies),
+    })
     for (const dependency of dependencies) {
-      const to = resolvePackageImport(dependency, componentNames, packageNames)
+      const to = resolvePackageImport(dependency, packageNames)
       if (to && to !== from) addRelationship(relationships, from, to, "workspace-dependency", `${packageFile} -> ${dependency}`)
     }
   }
@@ -95,7 +116,12 @@ export async function mapComponentRelationships(structure: ProjectStructure): Pr
 
 function componentFor(file: string) {
   const parts = file.split("/")
-  return componentRoots.has(parts[0] ?? "") ? parts.slice(0, 2).join("/") : (parts[0] ?? file)
+  if (parts.length < 2) return
+  if (componentRoots.has(parts[0] ?? "")) {
+    if (parts.length < 3 && path.posix.extname(parts[1] ?? "")) return
+    return parts.slice(0, 2).join("/")
+  }
+  return parts[0]
 }
 
 function resolveImport(sourceFile: string, specifier: string, files: readonly string[]) {
@@ -105,11 +131,14 @@ function resolveImport(sourceFile: string, specifier: string, files: readonly st
   return candidates.find((candidate) => files.includes(candidate))
 }
 
-function resolvePackageImport(specifier: string, components: ReadonlySet<string>, packageNames: ReadonlyMap<string, string>) {
-  const declaredPackage = packageNames.get(specifier)
-  if (declaredPackage) return declaredPackage
+function resolvePackageImport(specifier: string, packageNames: ReadonlyMap<string, string>) {
   const packageName = specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0]
-  return [...components].find((component) => component.endsWith(`/${packageName}`) || component === packageName)
+  return packageNames.get(packageName)
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return
+  return value as Record<string, unknown>
 }
 
 function addRelationship(
