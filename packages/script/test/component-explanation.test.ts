@@ -109,6 +109,46 @@ describe("explainComponent", () => {
     expect(explainComponent(component, makeMap([component])).headline).toStartWith("package.json - ")
   })
 
+  it("uses the last path segment to look up a nested folder's purpose", () => {
+    const component = { name: "packages/web", files: 1, dependsOn: [], usedBy: [] }
+
+    expect(explainComponent(component, makeMap([component])).headline).toBe("packages/web/ - web frontend code")
+  })
+
+  it("warns the used component when a workspace-only link points at it", () => {
+    const component = { name: "packages/shared", files: 1, dependsOn: [], usedBy: ["packages/web"] }
+    const explanation = explainComponent(
+      component,
+      makeMap(
+        [component],
+        [
+          {
+            from: "packages/web",
+            to: "packages/shared",
+            kinds: ["workspace-dependency"],
+            evidence: ["packages/web/package.json -> @course/shared"],
+          },
+        ],
+      ),
+    )
+
+    expect(explanation.why).toContain("declared only in package.json")
+  })
+
+  it("falls back to the listed name when a suggested starting point is missing from the map", () => {
+    const component = { name: "src", files: 2, dependsOn: ["ghost"], usedBy: ["app"] }
+
+    expect(explainComponent(component, makeMap([component])).why).toContain("read ghost first")
+  })
+
+  it("keeps the earlier dependency when two starting points are equally simple", () => {
+    const src = { name: "src", files: 3, dependsOn: ["api", "lib"], usedBy: ["app"] }
+    const api = { name: "api", files: 1, dependsOn: ["utils"], usedBy: ["src"] }
+    const lib = { name: "lib", files: 1, dependsOn: ["utils"], usedBy: ["src"] }
+
+    expect(explainComponent(src, makeMap([src, api, lib])).why).toContain("read api first")
+  })
+
   it("treats a dot-directory as a folder, not a file", () => {
     const component = { name: ".github", files: 2, dependsOn: [], usedBy: [] }
 
@@ -157,6 +197,10 @@ describe("explainComponents", () => {
     expect(explanations.map((explanation) => explanation.name)).toEqual(["app", "src", "utils"])
     expect(explanations.map((explanation) => explanation.role)).toEqual(["entry-point", "middle-layer", "foundational"])
   })
+
+  it("returns no explanations for an empty map", () => {
+    expect(explainComponents(makeMap([]))).toEqual([])
+  })
 })
 
 describe("renderComponentExplanations", () => {
@@ -167,6 +211,10 @@ describe("renderComponentExplanations", () => {
     expect(rendered.split("\n")[0]).toBe("utils/ - shared utility functions")
     expect(rendered.split("\n")[1]).toStartWith("  utils holds 1 file")
   })
+
+  it("renders an empty string when there is nothing to explain", () => {
+    expect(renderComponentExplanations([])).toBe("")
+  })
 })
 
 describe("end to end on a scanned repo", () => {
@@ -174,6 +222,7 @@ describe("end to end on a scanned repo", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "component-explanation-"))
     temporaryDirectories.push(root)
 
+    await Bun.write(path.join(root, "package.json"), JSON.stringify({ name: "demo" }))
     await Bun.write(path.join(root, "utils/format.ts"), "export const format = (value: string) => value")
     await Bun.write(path.join(root, "src/index.ts"), 'export { format } from "../utils/format"')
     await Bun.write(path.join(root, "app/main.ts"), 'import { format } from "../src/index"\nformat("ok")')
@@ -181,6 +230,7 @@ describe("end to end on a scanned repo", () => {
     const explanations = explainComponents(await mapComponentRelationships(await scanProjectStructure(root)))
     const byName = new Map(explanations.map((explanation) => [explanation.name, explanation]))
 
+    expect(byName.has("package.json")).toBe(false)
     expect(byName.get("utils")?.role).toBe("foundational")
     expect(byName.get("src")?.role).toBe("middle-layer")
     expect(byName.get("app")?.role).toBe("entry-point")
