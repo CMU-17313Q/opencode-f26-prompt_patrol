@@ -1,0 +1,7 @@
+.git
+**/node_modules
+**/.turbo
+**/dist
+.env
+*.docx
+demo-repo
