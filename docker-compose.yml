@@ -7,3 +7,8 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    volumes:
+      - opencode-data:/root/.local/share/opencode
+
+volumes:
+  opencode-data:
