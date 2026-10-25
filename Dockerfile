@@ -8,7 +8,8 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY . .
-RUN bun install --frozen-lockfile
+# not frozen: .dockerignore drops some workspaces, so the lockfile has to be pruned to match
+RUN bun install
 
 EXPOSE 4096
 
