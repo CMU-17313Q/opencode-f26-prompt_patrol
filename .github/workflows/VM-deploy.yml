@@ -24,5 +24,4 @@ jobs:
           script: |
             cd code/${{ secrets.REPO_NAME }}
             git pull origin main
-            docker compose down
             docker compose up -d --build
