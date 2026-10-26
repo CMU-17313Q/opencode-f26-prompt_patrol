@@ -11,13 +11,13 @@ The site shows OpenCode's standard web interface, which we didn't change. Our fe
 1. Open the site, click **Add project** and enter `/app`. That folder is our repository on the server.
 2. Send any message, like `hi`, to start a session.
 3. Type `/terminal` and press Enter. A terminal opens at the bottom of the page, inside `/app`.
-4. To use the terminal app, run `bun dev` in that terminal, then type `/models` and pick a model ending in `:free`. The API key is already set on the server, so you can skip `/connect`.
+4. To use the terminal app, run `bun dev /app` in that terminal (with plain `bun dev` it opens on `packages/opencode` instead of the whole repository), then type `/models` and pick a model ending in `:free`. The API key is already set on the server, so you can skip `/connect`.
 5. Press `Ctrl+C` to leave the terminal app.
 
 | Feature                             | Where to find it on the site                                  |
 | ----------------------------------- | ------------------------------------------------------------- |
-| Explain an error from the terminal  | Terminal app (`bun dev`)                                      |
-| Project structure scanner           | Terminal app (`bun dev`), or a command in the terminal        |
+| Explain an error from the terminal  | Terminal app (`bun dev /app`)                                 |
+| Project structure scanner           | Terminal app (`bun dev /app`), or a command in the terminal   |
 | Fix confidence level                | A command in the terminal                                     |
 | Error type and file location parser | A command in the terminal                                     |
 | Error output capture                | Ask the agent in the web chat to run a failing command        |
@@ -86,9 +86,11 @@ When a command fails in an OpenCode session, an **Explain this to me** button ap
 
 A command counts as failed when it exits with a non-zero code, or when the shell tool reports an error after the command started. Commands that succeed don't get the button. Neither do commands that never ran because permission was denied, or commands you stop yourself, since they didn't fail.
 
+Use it when a command fails and the error doesn't tell you enough to fix it, like a stack trace through code you didn't write or a compiler error you haven't seen before.
+
 ### How to use it
 
-**On the deployed site:** skip steps 1 and 2. Run `bun dev` in the site's terminal and pick a `:free` model with `/models`, as described in "Trying these features on our deployed site". Then continue from step 3.
+**On the deployed site:** skip steps 1 and 2. Run `bun dev /app` in the site's terminal and pick a `:free` model with `/models`, as described in "Trying these features on our deployed site". Then continue from step 3.
 
 1. Start OpenCode from the repository root, pointing it at the project folder you want to work in: `bun dev ~/my-project`. An installed `opencode` won't have this feature.
 2. Connect a model. OpenCode's built-in free models only accept requests from official releases, so a local build needs its own: type `/connect`, choose OpenRouter, paste your team's key, then pick a model ending in `:free` with `/models`.
@@ -165,15 +167,33 @@ The function is not connected to the UI yet. It is a building block for showing 
 
 ### How to use it
 
-**On the deployed site:** in the site's terminal, run `bun packages/script/demo/fix-confidence-demo.ts`. It prints a high, a medium and a low example, each with its reasons. The command below also works there as written.
+**On the deployed site:** in the site's terminal, run `bun packages/script/demo/fix-confidence-demo.ts`. It prints a high, a medium and a low example, each with its reasons. The commands below also work there.
 
-Run it from the repository root on a fix of your own:
+Nothing in OpenCode calls it yet, so you give it a fix yourself. Use it when you, or the agent, fixed an error and you want a second opinion on how much to trust the fix before keeping it.
+
+In a git project, save the error output before fixing, then save the diff after fixing:
+
+```sh
+your-failing-command > /tmp/error.txt 2>&1
+# fix the code, then:
+git diff > /tmp/fix.diff
+```
+
+Then run this from the root of this repository, with one sentence about what the fix does:
+
+```sh
+bun -e 'import { computeFixConfidence } from "./packages/script/src/fix-confidence.ts"; console.log(computeFixConfidence({ diff: await Bun.file("/tmp/fix.diff").text(), explanation: process.argv[1], verificationPassed: true, errorOutput: await Bun.file("/tmp/error.txt").text() }))' "What was wrong and what the fix changes"
+```
+
+Set `verificationPassed` to `false` if the command still fails after the fix, or remove it if you didn't rerun the command.
+
+### How to test it manually
+
+Run this example from the repository root:
 
 ```sh
 bun -e 'import { computeFixConfidence } from "./packages/script/src/fix-confidence.ts"; console.log(computeFixConfidence({ diff: "--- a/src/app.ts\n+++ b/src/app.ts\n@@ -1 +1 @@\n-old\n+new", explanation: "The variable was typed as number but assigned a string.", verificationPassed: true, errorOutput: "src/app.ts(3,5): error TS2322: Type string is not assignable to type number." }))'
 ```
-
-### How to test it manually
 
 Change one input at a time in the command above and check the result:
 
@@ -217,11 +237,13 @@ The scanner reads a project folder and gives you two things: a file & folder tre
 
 It skips folders that are noise for understanding a project: `node_modules`, `.git`, `dist`, `build`, `out`, `.turbo`, `.cache` and `coverage`.
 
+Use it when you open a project you don't know yet and want to see how it's laid out before reading any code.
+
 The code is in [`packages/script/src/project-structure.ts`](packages/script/src/project-structure.ts). `summarizeProjectStructure(root)` returns the tree and the guesses.
 
 ### How to use it
 
-**On the deployed site:** run `bun dev` in the site's terminal, then open the dialog as described below. To see the scanner's output directly, run the `bun -e` command below in the site's terminal, using `.` as the path.
+**On the deployed site:** run `bun dev /app` in the site's terminal, then open the dialog as described below. To see the scanner's output directly, run the `bun -e` command below in the site's terminal, using `.` as the path.
 
 In an OpenCode TUI session, press `Ctrl+P`, choose **Suggested**, then select **View project structure**. You'll see the top level of the project, with a short comment next to well-known files and folders. Select a folder to open it. You can go up to 2 levels below the top, so 3 levels in total. Folders at the last level are listed but don't open, and files never open. Select `../` to go back up.
 
@@ -280,16 +302,27 @@ The parser is not connected to the UI yet. It is a building block for the explan
 
 ### How to use it
 
-**On the deployed site:** run the command below in the site's terminal as written.
+**On the deployed site:** run the commands below in the site's terminal.
 
-Run it on any error text from the repository root:
+Nothing in OpenCode calls it yet, so you give it error output yourself. Use it on a long error when you want just the error type and the line it points to.
+
+Save the output of a command that failed, then run the parser on it from the root of this repository:
+
+```sh
+your-failing-command > /tmp/error.txt 2>&1
+bun -e 'import { parseErrorLocation } from "./packages/script/src/error-location.ts"; console.log(parseErrorLocation(await Bun.file("/tmp/error.txt").text()))'
+```
+
+It prints the error type, file, line and column, or `undefined` if it doesn't recognize the output.
+
+### How to test it manually
+
+Pass each input below to this command, replacing the text in the last quotes:
 
 ```sh
 bun -e 'import { parseErrorLocation } from "./packages/script/src/error-location.ts"; console.log(parseErrorLocation(process.argv[1]))' "TypeError: boom
     at file:///tmp/broken.js:3:7"
 ```
-
-### How to test it manually
 
 | Input                                                                             | Expected result                                                         |
 | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
