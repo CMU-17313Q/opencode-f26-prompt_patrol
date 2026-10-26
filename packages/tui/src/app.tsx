@@ -625,9 +625,9 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         suggested: true,
         run: () => {
           const path = project.instance.path()
-          dialog.replace(() => (
-            <DialogProjectStructure root={path.worktree || path.directory || process.cwd()} />
-          ))
+          // Non-git projects get "/" as their worktree, which would scan the whole filesystem
+          const root = path.worktree && path.worktree !== "/" ? path.worktree : path.directory || process.cwd()
+          dialog.replace(() => <DialogProjectStructure root={root} />)
         },
       },
       ...Array.from({ length: 9 }, (_, i) => ({
