@@ -4,6 +4,7 @@
   "license": "MIT",
   "scripts": {
     "test": "bun test",
+    "test:coverage:project-structure": "bun test --coverage test/project-structure.test.ts",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
