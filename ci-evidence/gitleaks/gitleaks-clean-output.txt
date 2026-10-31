@@ -1,0 +1,8 @@
+$ gitleaks version
+8.30.1
+
+$ gitleaks git . --redact --no-banner --verbose
+3:39PM INF 56 commits scanned.
+3:39PM INF scanned ~51765843 bytes (51.77 MB) in 9.89s
+3:39PM INF no leaks found
+exit code: 0
