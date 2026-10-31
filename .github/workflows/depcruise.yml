@@ -1,0 +1,31 @@
+name: depcruise
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  depcruise:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Check package layering
+        # Fails on any rule set to "error" in .dependency-cruiser.cjs; circular imports only warn
+        run: bun run lint:deps -- --output-type err-long | tee depcruise-report.txt
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: depcruise-report
+          path: depcruise-report.txt
