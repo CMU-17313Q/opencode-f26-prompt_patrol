@@ -1,0 +1,11 @@
+.git
+**/node_modules
+**/.turbo
+**/dist
+.env
+*.docx
+demo-repo
+# Web app packages the server does not need; they pin @solidjs/start to a pkg.pr.new preview that now 404s
+packages/console
+packages/enterprise
+packages/stats

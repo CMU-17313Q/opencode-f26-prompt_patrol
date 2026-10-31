@@ -49,6 +49,7 @@ import { DialogHelp } from "./ui/dialog-help"
 import { DialogAgent } from "./component/dialog-agent"
 import { DialogSessionList } from "./component/dialog-session-list"
 import { DialogWorkspaceList } from "./component/dialog-workspace-list"
+import { DialogProjectStructure } from "./component/dialog-project-structure"
 import { DialogConsoleOrg } from "./component/dialog-console-org"
 import { ThemeProvider, useTheme } from "./context/theme"
 import { Home } from "./routes/home"
@@ -615,6 +616,18 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         slashName: "workspaces",
         run: () => {
           dialog.replace(() => <DialogWorkspaceList />)
+        },
+      },
+      {
+        name: "project.structure",
+        title: "View project structure",
+        category: "Project",
+        suggested: true,
+        run: () => {
+          const path = project.instance.path()
+          // Non-git projects get "/" as their worktree, which would scan the whole filesystem
+          const root = path.worktree && path.worktree !== "/" ? path.worktree : path.directory || process.cwd()
+          dialog.replace(() => <DialogProjectStructure root={root} />)
         },
       },
       ...Array.from({ length: 9 }, (_, i) => ({

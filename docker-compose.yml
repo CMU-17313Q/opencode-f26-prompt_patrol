@@ -1,0 +1,14 @@
+services:
+  opencode:
+    build: .
+    ports:
+      - '127.0.0.1:4096:4096'
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    volumes:
+      - opencode-data:/root/.local/share/opencode
+
+volumes:
+  opencode-data:

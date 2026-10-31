@@ -1558,6 +1558,42 @@ unixNoLLMServer(
 )
 
 unixNoLLMServer(
+  "shell records the exit code of a failed command",
+  () =>
+    Effect.gen(function* () {
+      const { prompt, run, chat } = yield* boot()
+      const result = yield* prompt.shell({
+        sessionID: chat.id,
+        agent: "build",
+        command: "printf 'TypeError: boom' >&2 && exit 3",
+      })
+
+      const tool = completedTool(result.parts)
+      if (!tool) return
+
+      expect(tool.state.metadata.exit).toBe(3)
+      expect(tool.state.metadata.output).toContain("TypeError: boom")
+      yield* run.assertNotBusy(chat.id)
+    }),
+  { config: cfg },
+)
+
+unixNoLLMServer(
+  "shell records a zero exit code for a successful command",
+  () =>
+    Effect.gen(function* () {
+      const { prompt, chat } = yield* boot()
+      const result = yield* prompt.shell({ sessionID: chat.id, agent: "build", command: "printf ok" })
+
+      const tool = completedTool(result.parts)
+      if (!tool) return
+
+      expect(tool.state.metadata.exit).toBe(0)
+    }),
+  { config: cfg },
+)
+
+unixNoLLMServer(
   "shell completes a fast command on the preferred shell",
   () =>
     Effect.gen(function* () {

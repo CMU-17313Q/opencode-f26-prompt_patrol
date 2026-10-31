@@ -76,6 +76,7 @@ import { useClipboard } from "../../context/clipboard"
 import { nextThinkingMode, reasoningSummary, useThinkingMode, type ThinkingMode } from "../../context/thinking"
 import { getScrollAcceleration } from "../../util/scroll"
 import { collapseToolOutput } from "../../util/collapse-tool-output"
+import { errorExplanationPrompt, failedCommand } from "../../util/error-explanation"
 import { usePluginRuntime } from "../../plugin/runtime"
 import { DialogRetryAction } from "../../component/dialog-retry-action"
 import { getRevertDiffFiles } from "../../util/revert-diff"
@@ -2055,7 +2056,13 @@ function Shell(props: ToolProps) {
   const { theme } = useTheme()
   const pathFormatter = usePathFormatter()
   const ctx = use()
+  const promptRef = usePromptRef()
   const isRunning = createMemo(() => props.part.state.status === "running")
+  // Subagent sessions hide the prompt, so there is nowhere to send the explanation request.
+  const failure = createMemo(() =>
+    ctx.sync.session.get(ctx.sessionID)?.parentID ? undefined : failedCommand(props.part.state),
+  )
+  const [explainHover, setExplainHover] = createSignal(false)
   const output = createMemo(() => stripAnsi(stringValue(props.metadata.output)?.trim() ?? ""))
   const [expanded, setExpanded] = createSignal(false)
   const maxLines = 10
@@ -2097,6 +2104,31 @@ function Shell(props: ToolProps) {
             </Show>
             <Show when={collapsed().overflow}>
               <text fg={theme.textMuted}>{expanded() ? "Click to collapse" : "Click to expand"}</text>
+            </Show>
+            <Show when={failure()}>
+              {(failure) => (
+                <box flexDirection="row">
+                  <box
+                    paddingLeft={1}
+                    paddingRight={1}
+                    backgroundColor={explainHover() ? theme.primary : theme.error}
+                    onMouseOver={() => setExplainHover(true)}
+                    onMouseOut={() => setExplainHover(false)}
+                    onMouseUp={(event) => {
+                      // Keep the click from also toggling the surrounding block's expand/collapse.
+                      event.stopPropagation()
+                      const prompt = promptRef.current
+                      if (!prompt) return
+                      prompt.set({ input: errorExplanationPrompt(failure()), parts: [] })
+                      prompt.submit()
+                    }}
+                  >
+                    <text fg={theme.selectedListItemText} attributes={TextAttributes.BOLD}>
+                      Explain this to me
+                    </text>
+                  </box>
+                </box>
+              )}
             </Show>
           </box>
         </BlockTool>

@@ -2,7 +2,14 @@ import { afterEach, describe, expect, it } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { listProjectFiles, scanProjectStructure, summarizeProjectStructure } from "../src/project-structure"
+import {
+  listProjectFiles,
+  listStructureLevel,
+  maxStructureDepth,
+  scanProjectStructure,
+  scanProjectTree,
+  summarizeProjectStructure,
+} from "../src/project-structure"
 
 const temporaryDirectories: string[] = []
 
@@ -102,5 +109,84 @@ describe("project structure scanner", () => {
 
     expect(structure.root).toBe(root)
     expect(structure.files).toEqual(["packages/shared/package.json", "src/index.ts"])
+  })
+})
+
+describe("project structure navigation", () => {
+  async function makeNestedRepo() {
+    const root = await makeSampleRepo()
+    await Bun.write(path.join(root, "README.md"), "# Sample")
+    await Bun.write(path.join(root, "package.json"), JSON.stringify({ name: "sample" }))
+    await Bun.write(path.join(root, "src/index.ts"), "")
+    await Bun.write(path.join(root, "src/utils/format.ts"), "")
+    await Bun.write(path.join(root, "src/utils/deep/leaf.ts"), "")
+    await Bun.write(path.join(root, "docs/guide.md"), "")
+    await Bun.write(path.join(root, "node_modules/dep/index.js"), "")
+    return scanProjectTree(root)
+  }
+
+  it("lists only the top level first, folders before files, each sorted", async () => {
+    const entries = listStructureLevel(await makeNestedRepo())
+
+    expect(entries.map((entry) => `${entry.kind}:${entry.name}`)).toEqual([
+      "folder:docs",
+      "folder:src",
+      // Same plain character ordering as the existing tree, so uppercase names come first.
+      "file:README.md",
+      "file:package.json",
+    ])
+  })
+
+  it("leaves ignored directories out of the tree", async () => {
+    const entries = listStructureLevel(await makeNestedRepo())
+
+    expect(entries.some((entry) => entry.name === "node_modules")).toBe(false)
+  })
+
+  it("lists one level deeper when given a folder path", async () => {
+    const entries = listStructureLevel(await makeNestedRepo(), ["src"])
+
+    expect(entries.map((entry) => entry.name)).toEqual(["utils", "index.ts"])
+    expect(entries[0]?.path).toEqual(["src", "utils"])
+  })
+
+  it("attaches purposes to folders and files at any level", async () => {
+    const tree = await makeNestedRepo()
+
+    expect(listStructureLevel(tree).find((entry) => entry.name === "src")?.purpose).toBe("main application code")
+    expect(listStructureLevel(tree).find((entry) => entry.name === "package.json")?.purpose).toBe(
+      "Node.js package manifest and dependencies",
+    )
+    expect(listStructureLevel(tree, ["src"]).find((entry) => entry.name === "utils")?.purpose).toBe(
+      "shared utility functions",
+    )
+    expect(listStructureLevel(tree, ["src"]).find((entry) => entry.name === "index.ts")?.purpose).toBeUndefined()
+  })
+
+  it("only lets folders be opened, and only up to the depth limit", async () => {
+    const tree = await makeNestedRepo()
+    const openable = (folder: string[], name: string) =>
+      listStructureLevel(tree, folder).find((entry) => entry.name === name)?.openable
+
+    expect(maxStructureDepth).toBe(2)
+    expect(openable([], "src")).toBe(true)
+    expect(openable([], "package.json")).toBe(false)
+    expect(openable(["src"], "utils")).toBe(true)
+    // src/utils/deep is the third level down, so it is shown but cannot be opened.
+    expect(listStructureLevel(tree, ["src", "utils"]).map((entry) => `${entry.name}:${entry.openable}`)).toEqual([
+      "deep:false",
+      "format.ts:false",
+    ])
+  })
+
+  it("returns nothing for a path that does not exist or is a file", async () => {
+    const tree = await makeNestedRepo()
+
+    expect(listStructureLevel(tree, ["missing"])).toEqual([])
+    expect(listStructureLevel(tree, ["src", "index.ts"])).toEqual([])
+  })
+
+  it("returns nothing for an empty project", async () => {
+    expect(listStructureLevel(await scanProjectTree(await makeSampleRepo()))).toEqual([])
   })
 })
