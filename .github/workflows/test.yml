@@ -64,6 +64,10 @@ jobs:
         # contention issue typecheck.yml already caps for tsgo.
         run: GITHUB_ACTIONS=false bun turbo test --concurrency=4
 
+      - name: Run component-relationship coverage gate
+        working-directory: packages/script
+        run: bun run test:coverage:project-structure
+
       - name: Check generated client
         timeout-minutes: 5
         working-directory: packages/client
