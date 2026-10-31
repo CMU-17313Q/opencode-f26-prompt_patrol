@@ -10,5 +10,17 @@ services:
     volumes:
       - opencode-data:/root/.local/share/opencode
 
+  k6:
+    image: grafana/k6:latest
+    profiles:
+      - test
+    depends_on:
+      - opencode
+    environment:
+      BASE_URL: http://opencode:4096
+    volumes:
+      - ./tests/k6:/scripts:ro
+    command: run /scripts/smoke.js
+
 volumes:
   opencode-data:
