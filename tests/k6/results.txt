@@ -1,0 +1,177 @@
+ Container opencode-f26-prompt_patrol-opencode-1 Running 
+ Image grafana/k6:latest Pulling 
+ 4f4fb700ef54 Pulling fs layer 0B
+ 2b28f25602d4 Pulling fs layer 0B
+ 699240e0b337 Pulling fs layer 0B
+ 55afa1ecc21d Pulling fs layer 0B
+ 4f4fb700ef54 Already exists 0B
+ 4f4fb700ef54 Pull complete 0B
+ 55afa1ecc21d Downloading 1.049MB
+ 2b28f25602d4 Download complete 0B
+ 55afa1ecc21d Downloading 2.097MB
+ 55afa1ecc21d Download complete 0B
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 1.049MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 3.146MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 5.243MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 6.291MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 7.34MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 7.34MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 8.389MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 8.389MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 9.437MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 11.53MB
+ 55afa1ecc21d Extracting 1B
+ 699240e0b337 Downloading 13.63MB
+ 55afa1ecc21d Extracting 2B
+ 699240e0b337 Downloading 14.68MB
+ 55afa1ecc21d Extracting 2B
+ 699240e0b337 Downloading 15.73MB
+ 55afa1ecc21d Extracting 2B
+ 699240e0b337 Downloading 16.78MB
+ 55afa1ecc21d Extracting 2B
+ 44136fa355b3 Already exists 0B
+ 699240e0b337 Downloading 18.87MB
+ 55afa1ecc21d Pull complete 0B
+ 699240e0b337 Downloading 20.97MB
+ 2b28f25602d4 Pull complete 0B
+ 699240e0b337 Downloading 23.07MB
+ 935631f8a8f2 Download complete 0B
+ 699240e0b337 Downloading 25.17MB
+ 699240e0b337 Downloading 27.26MB
+ 699240e0b337 Downloading 29.36MB
+ 699240e0b337 Downloading 30.41MB
+ 699240e0b337 Downloading 30.41MB
+ 699240e0b337 Downloading 31.46MB
+ 699240e0b337 Downloading 32.29MB
+ 699240e0b337 Download complete 0B
+ 699240e0b337 Extracting 1B
+ 699240e0b337 Extracting 1B
+ 699240e0b337 Pull complete 0B
+ Image grafana/k6:latest Pulled 
+ Container opencode-f26-prompt_patrol-k6-run-736b513ac185 Creating 
+ Container opencode-f26-prompt_patrol-k6-run-736b513ac185 Created 
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: /scripts/smoke.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 2 max VUs, 50s max duration (incl. graceful stop):
+              * default: 2 looping VUs for 20s (gracefulStop: 30s)
+
+
+running (01.0s), 2/2 VUs, 0 complete and 0 interrupted iterations
+default   [   5% ] 2 VUs  01.0s/20s
+
+running (02.0s), 2/2 VUs, 2 complete and 0 interrupted iterations
+default   [  10% ] 2 VUs  02.0s/20s
+
+running (03.0s), 2/2 VUs, 4 complete and 0 interrupted iterations
+default   [  15% ] 2 VUs  03.0s/20s
+
+running (04.0s), 2/2 VUs, 6 complete and 0 interrupted iterations
+default   [  20% ] 2 VUs  04.0s/20s
+
+running (05.0s), 2/2 VUs, 8 complete and 0 interrupted iterations
+default   [  25% ] 2 VUs  05.0s/20s
+
+running (06.0s), 2/2 VUs, 10 complete and 0 interrupted iterations
+default   [  30% ] 2 VUs  06.0s/20s
+
+running (07.0s), 2/2 VUs, 12 complete and 0 interrupted iterations
+default   [  35% ] 2 VUs  07.0s/20s
+
+running (08.0s), 2/2 VUs, 14 complete and 0 interrupted iterations
+default   [  40% ] 2 VUs  08.0s/20s
+
+running (09.0s), 2/2 VUs, 16 complete and 0 interrupted iterations
+default   [  45% ] 2 VUs  09.0s/20s
+
+running (10.0s), 2/2 VUs, 18 complete and 0 interrupted iterations
+default   [  50% ] 2 VUs  10.0s/20s
+
+running (11.0s), 2/2 VUs, 20 complete and 0 interrupted iterations
+default   [  55% ] 2 VUs  11.0s/20s
+
+running (12.0s), 2/2 VUs, 22 complete and 0 interrupted iterations
+default   [  60% ] 2 VUs  12.0s/20s
+
+running (13.0s), 2/2 VUs, 24 complete and 0 interrupted iterations
+default   [  65% ] 2 VUs  13.0s/20s
+
+running (14.0s), 2/2 VUs, 26 complete and 0 interrupted iterations
+default   [  70% ] 2 VUs  14.0s/20s
+
+running (15.0s), 2/2 VUs, 28 complete and 0 interrupted iterations
+default   [  75% ] 2 VUs  15.0s/20s
+
+running (16.0s), 2/2 VUs, 30 complete and 0 interrupted iterations
+default   [  80% ] 2 VUs  16.0s/20s
+
+running (17.0s), 2/2 VUs, 32 complete and 0 interrupted iterations
+default   [  85% ] 2 VUs  17.0s/20s
+
+running (18.0s), 2/2 VUs, 34 complete and 0 interrupted iterations
+default   [  90% ] 2 VUs  18.0s/20s
+
+running (19.0s), 2/2 VUs, 36 complete and 0 interrupted iterations
+default   [  95% ] 2 VUs  19.0s/20s
+
+running (20.0s), 2/2 VUs, 38 complete and 0 interrupted iterations
+default   [ 100% ] 2 VUs  20.0s/20s
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate>0.95' rate=100.00%
+
+    http_req_failed
+    ✓ 'rate<0.05' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 40      1.907045/s
+    checks_succeeded...: 100.00% 40 out of 40
+    checks_failed......: 0.00%   0 out of 40
+
+    ✓ Homepage returns 200
+
+    HTTP
+    http_req_duration..............: avg=43.5ms min=16.88ms med=24.39ms max=279.9ms p(90)=70.84ms p(95)=133.83ms
+      { expected_response:true }...: avg=43.5ms min=16.88ms med=24.39ms max=279.9ms p(90)=70.84ms p(95)=133.83ms
+    http_req_failed................: 0.00%  0 out of 40
+    http_reqs......................: 40     1.907045/s
+
+    EXECUTION
+    iteration_duration.............: avg=1.04s  min=1.01s   med=1.02s   max=1.28s   p(90)=1.07s   p(95)=1.13s   
+    iterations.....................: 40     1.907045/s
+    vus............................: 2      min=2       max=2
+    vus_max........................: 2      min=2       max=2
+
+    NETWORK
+    data_received..................: 137 kB 6.5 kB/s
+    data_sent......................: 2.8 kB 132 B/s
+
+
+
+
+running (21.0s), 0/2 VUs, 40 complete and 0 interrupted iterations
+default ✓ [ 100% ] 2 VUs  20s
