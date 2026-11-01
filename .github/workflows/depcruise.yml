@@ -20,7 +20,9 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Check package layering
-        # Fails on any rule set to "error" in .dependency-cruiser.cjs; circular imports only warn
+        # Fails on any rule set to "error" in .dependency-cruiser.cjs; circular imports only warn.
+        # shell: bash turns on pipefail, so piping into tee doesn't hide a failing exit code.
+        shell: bash
         run: bun run lint:deps -- --output-type err-long | tee depcruise-report.txt
 
       - name: Upload report
