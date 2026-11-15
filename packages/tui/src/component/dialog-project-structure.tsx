@@ -1,6 +1,13 @@
 /** @jsxImportSource @opentui/solid */
 import { resolve } from "node:path"
-import { listStructureLevel, maxStructureDepth, scanProjectTree } from "@opencode-ai/script/project-structure"
+import {
+  listStructureLevel,
+  maxStructureDepth,
+  parentStructurePath,
+  scanProjectTree,
+  structureEntryTitle,
+  structureLocation,
+} from "@opencode-ai/script/project-structure"
 import { createMemo, createResource, createSignal, onMount } from "solid-js"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
@@ -32,8 +39,8 @@ export function DialogProjectStructure(props: { root: string }) {
     if (entries().length === 0) return "No project files found"
   })
   const options = createMemo<DialogSelectOption<StructureValue>[]>(() => {
-    const category = folder().length ? `${folder().join("/")}/` : "Project root"
-    const up = folder().slice(0, -1)
+    const category = structureLocation(folder())
+    const up = parentStructurePath(folder())
     return [
       ...(folder().length
         ? [
@@ -47,7 +54,7 @@ export function DialogProjectStructure(props: { root: string }) {
           ]
         : []),
       ...entries().map((entry) => ({
-        title: entry.kind === "folder" ? `${entry.name}/` : entry.name,
+          title: structureEntryTitle(entry),
         description: entry.purpose,
         category,
         value: { kind: entry.kind, path: entry.path },

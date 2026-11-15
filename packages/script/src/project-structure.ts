@@ -140,7 +140,23 @@ export type StructureEntry = {
 
 /** Scans a repo and returns its full directory tree, skipping the same noise directories as the file scan. */
 export async function scanProjectTree(root: string): Promise<ProjectTree> {
-  return buildTree(await listProjectFiles(root))
+  const tree: ProjectTree = {}
+  await scanTreeLevel(root, "", tree)
+  return tree
+}
+
+async function scanTreeLevel(root: string, relativeDir: string, tree: ProjectTree) {
+  const entries = await fs.readdir(path.join(root, relativeDir), { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (ignoredDirectories.has(entry.name)) continue
+      const child: ProjectTree = {}
+      tree[entry.name] = child
+      await scanTreeLevel(root, relativeDir ? `${relativeDir}/${entry.name}` : entry.name, child)
+      continue
+    }
+    if (entry.isFile()) tree[entry.name] = null
+  }
 }
 
 /**
@@ -165,6 +181,18 @@ export function listStructureLevel(tree: ProjectTree, folder: readonly string[] 
       }
     })
     .sort((a, b) => (a.kind === b.kind ? (a.name < b.name ? -1 : 1) : a.kind === "folder" ? -1 : 1))
+}
+
+export function structureLocation(folder: readonly string[]) {
+  return folder.length ? `${folder.join("/")}/` : "Project root"
+}
+
+export function parentStructurePath(folder: readonly string[]) {
+  return folder.slice(0, -1)
+}
+
+export function structureEntryTitle(entry: Pick<StructureEntry, "kind" | "name">) {
+  return entry.kind === "folder" ? `${entry.name}/` : entry.name
 }
 
 function buildTree(files: readonly string[]): ProjectTree {
