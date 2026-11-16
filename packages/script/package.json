@@ -12,7 +12,8 @@
   },
   "devDependencies": {
     "@types/bun": "catalog:",
-    "@types/semver": "^7.5.8"
+    "@types/semver": "^7.5.8",
+    "fast-check": "4.10.2"
   },
   "exports": {
     ".": "./src/index.ts",

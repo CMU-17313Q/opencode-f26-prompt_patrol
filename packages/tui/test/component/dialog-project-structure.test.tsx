@@ -98,6 +98,7 @@ test("project structure dialog opens folders level by level and stops at the dep
   await Bun.write(path.join(tmp.path, "project/src/utils/format.ts"), "")
   await Bun.write(path.join(tmp.path, "project/src/utils/deep/leaf.ts"), "")
   await Bun.write(path.join(tmp.path, "project/docs/guide.md"), "")
+  await mkdir(path.join(tmp.path, "project/zz-empty"))
   const view = await mountStructure(tmp.path)
 
   try {
@@ -105,6 +106,9 @@ test("project structure dialog opens folders level by level and stops at the dep
     const top = await view.waitFor("README.md")
     expect(top).toContain("docs/")
     expect(top).toContain("src/")
+    expect(top).toContain("zz-empty/")
+    expect(top).toContain("Project root")
+    expect(top).not.toContain("README.md/")
     expect(top).not.toContain("utils/")
     expect(top).not.toContain("index.ts")
 
@@ -113,7 +117,10 @@ test("project structure dialog opens folders level by level and stops at the dep
     view.app.mockInput.pressEnter()
     const level1 = await view.waitFor("index.ts")
     expect(level1).toContain("../")
+    expect(level1).toContain("src/")
     expect(level1).toContain("utils/")
+    expect(level1).toContain("index.ts")
+    expect(level1).not.toContain("index.ts/")
     expect(level1).not.toContain("README.md")
 
     // Level 2: ../ is first, then utils/ (folders first), open utils/.
@@ -133,7 +140,11 @@ test("project structure dialog opens folders level by level and stops at the dep
     view.app.mockInput.pressArrow("up")
     view.app.mockInput.pressEnter()
     const back = await view.waitFor("index.ts")
+    const srcEntries = ["utils/", "index.ts"]
+    expect(srcEntries.filter((entry) => level1.includes(entry))).toEqual(srcEntries)
+    expect(srcEntries.filter((entry) => back.includes(entry))).toEqual(srcEntries)
     expect(back).not.toContain("format.ts")
+    expect(back).not.toContain("README.md")
   } finally {
     view.cleanup()
   }

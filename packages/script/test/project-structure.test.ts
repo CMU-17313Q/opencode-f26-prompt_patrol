@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { chmod, mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import {
@@ -9,6 +9,7 @@ import {
   scanProjectStructure,
   scanProjectTree,
   summarizeProjectStructure,
+  unreadableProjectTreeDirectories,
 } from "../src/project-structure"
 
 const temporaryDirectories: string[] = []
@@ -189,4 +190,37 @@ describe("project structure navigation", () => {
   it("returns nothing for an empty project", async () => {
     expect(listStructureLevel(await scanProjectTree(await makeSampleRepo()))).toEqual([])
   })
+
+  it("limits the scan depth, skips noise directories, and retains files with matching names", async () => {
+    const root = await makeSampleRepo()
+    await Bun.write(path.join(root, "build"), "")
+    await Bun.write(path.join(root, "dist/bundle.js"), "")
+    await Bun.write(path.join(root, "src/utils/deep/leaf.ts"), "")
+
+    const tree = await scanProjectTree(root)
+
+    expect(listStructureLevel(tree).map((entry) => entry.name)).toContain("build")
+    expect(listStructureLevel(tree).map((entry) => entry.name)).not.toContain("dist")
+    expect(listStructureLevel(tree, ["src", "utils"]).map((entry) => entry.name)).toEqual(["deep"])
+    expect(listStructureLevel(tree, ["src", "utils", "deep"])).toEqual([])
+  })
+
+  if (process.platform !== "win32" && process.getuid?.() !== 0) {
+    it("keeps scanning when a nested folder cannot be read and reports that folder", async () => {
+      const root = await makeSampleRepo()
+      await Bun.write(path.join(root, "visible.ts"), "")
+      const restricted = path.join(root, "restricted")
+      await Bun.write(path.join(restricted, "hidden.ts"), "")
+      await chmod(restricted, 0)
+
+      try {
+        const tree = await scanProjectTree(root)
+
+        expect(listStructureLevel(tree).map((entry) => entry.name)).toEqual(["restricted", "visible.ts"])
+        expect(unreadableProjectTreeDirectories(tree)).toEqual(["restricted"])
+      } finally {
+        await chmod(restricted, 0o700)
+      }
+    })
+  }
 })
