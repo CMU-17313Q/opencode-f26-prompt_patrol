@@ -1,14 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { resolve } from "node:path"
-import {
-  listStructureLevel,
-  maxStructureDepth,
-  parentStructurePath,
-  scanProjectTree,
-  structureEntryTitle,
-  structureLocation,
-  unreadableProjectTreeDirectories,
-} from "@opencode-ai/script/project-structure"
+import { listStructureLevel, maxStructureDepth, scanProjectTree } from "@opencode-ai/script/project-structure"
 import { createMemo, createResource, createSignal, onMount } from "solid-js"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
@@ -34,18 +26,14 @@ export function DialogProjectStructure(props: { root: string }) {
     const tree = listing()?.tree
     return tree ? listStructureLevel(tree, folder()) : []
   })
-  const unreadable = createMemo(() => {
-    const tree = listing()?.tree
-    return tree ? unreadableProjectTreeDirectories(tree) : []
-  })
   const status = createMemo(() => {
     if (listing.loading) return "Loading..."
     if (listing()?.error) return listing()?.error
     if (entries().length === 0) return "No project files found"
   })
   const options = createMemo<DialogSelectOption<StructureValue>[]>(() => {
-    const category = structureLocation(folder())
-    const up = parentStructurePath(folder())
+    const category = folder().length ? `${folder().join("/")}/` : "Project root"
+    const up = folder().slice(0, -1)
     return [
       ...(folder().length
         ? [
@@ -59,7 +47,7 @@ export function DialogProjectStructure(props: { root: string }) {
           ]
         : []),
       ...entries().map((entry) => ({
-        title: structureEntryTitle(entry),
+        title: entry.kind === "folder" ? `${entry.name}/` : entry.name,
         description: entry.purpose,
         category,
         value: { kind: entry.kind, path: entry.path },
@@ -84,7 +72,6 @@ export function DialogProjectStructure(props: { root: string }) {
       footer={
         <text>
           {root} - folders open up to {maxStructureDepth} levels deep
-          {unreadable().length ? `; could not read: ${unreadable().join(", ")}` : ""}
         </text>
       }
       renderFilter={false}
