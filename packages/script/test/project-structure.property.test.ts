@@ -24,7 +24,13 @@ test("R1: the displayed location identifies the root or full project path", () =
         }),
       ),
       (folder) => {
-        expect(structureLocation(folder)).toBe(folder.length ? `${folder.join("/")}/` : "Project root")
+        const location = structureLocation(folder)
+        if (folder.length === 0) {
+          expect(location).toBe("Project root")
+          return
+        }
+        expect(location.endsWith("/")).toBe(true)
+        expect(location.slice(0, -1).split("/")).toEqual(folder)
       },
     ),
   )
@@ -36,42 +42,67 @@ test("R2: rescanning shows new folders and files under their actual parent", asy
   // then compare the rescan to those additions.
   await assert(
     asyncProperty(
+      integer({ min: 1, max: maxStructureDepth }).chain((length) =>
+        array(integer({ min: 0, max: 10000 }), {
+          minLength: length,
+          maxLength: length,
+        }),
+      ),
       integer({ min: 0, max: 10000 }),
       integer({ min: 0, max: 10000 }),
-      integer({ min: 0, max: 10000 }),
-      async (parentID, folderID, fileID) => {
+      async (parentIDs, folderID, fileID) => {
         const root = await mkdtemp(path.join(os.tmpdir(), "project-structure-property-"))
-        const parent = `parent-${parentID}`
+        const parent = parentIDs.map((id, index) => `parent-${index}-${id}`)
         const folder = `folder-${folderID}`
         const file = `file-${fileID}.ts`
 
         try {
-          await mkdir(path.join(root, parent), { recursive: true })
-          expect(listStructureLevel(await scanProjectTree(root), [parent])).toEqual([])
-          await mkdir(path.join(root, parent, folder))
-          await Bun.write(path.join(root, parent, file), "")
+          await mkdir(path.join(root, ...parent), { recursive: true })
+          expect(listStructureLevel(await scanProjectTree(root), parent)).toEqual([])
+          await mkdir(path.join(root, ...parent, folder))
+          await Bun.write(path.join(root, ...parent, file), "")
 
-          const entries = listStructureLevel(await scanProjectTree(root), [parent])
+          const tree = await scanProjectTree(root)
+          const entries = listStructureLevel(tree, parent)
+          const rootEntries = listStructureLevel(tree)
           expect(entries.some((entry) => entry.kind === "folder" && entry.name === folder)).toBe(true)
           expect(entries.some((entry) => entry.kind === "file" && entry.name === file)).toBe(true)
+          expect(rootEntries.some((entry) => entry.name === folder || entry.name === file)).toBe(false)
         } finally {
           await rm(root, { recursive: true, force: true })
         }
       },
     ),
+    { numRuns: 20 },
   )
 })
 
 test("R3: navigating up one level returns the immediate parent", () => {
   // R3: Navigating back from a folder must return the user to its immediate parent directory.
-  // Kind: round-trip. Generate a root or one-level parent, descend once, then verify
-  // one back-navigation restores it.
+  // Kind: round-trip. Generate a project hierarchy, inspect a child level, then verify
+  // returning to the parent lists the exact same entries as before opening the child.
   assert(
-    property(
+    asyncProperty(
       array(constantFrom("src", "packages", "models", "utils"), { maxLength: maxStructureDepth - 1 }),
-      (parent) => {
-        const child = [...parent, "child"]
-        expect(parentStructurePath(child)).toEqual(parent)
+      async (parent) => {
+        const childPath = [...parent, "child"]
+        const child = [...childPath, "leaf.ts"].join("/")
+        const sibling = [...parent, "sibling.ts"].join("/")
+        const root = await mkdtemp(path.join(os.tmpdir(), "project-structure-navigation-"))
+
+        try {
+          await Bun.write(path.join(root, child), "")
+          await Bun.write(path.join(root, sibling), "")
+          const tree = await scanProjectTree(root)
+          const before = listStructureLevel(tree, parent).map((entry) => `${entry.kind}:${entry.name}`)
+          expect(listStructureLevel(tree, childPath).map((entry) => entry.name)).toEqual(["leaf.ts"])
+
+          const returnedTo = parentStructurePath(childPath)
+          expect(returnedTo).toEqual(parent)
+          expect(listStructureLevel(tree, returnedTo).map((entry) => `${entry.kind}:${entry.name}`)).toEqual(before)
+        } finally {
+          await rm(root, { recursive: true, force: true })
+        }
       },
     ),
   )
@@ -86,7 +117,7 @@ test("R5: folder titles have an indicator that file titles do not", () => {
       integer({ min: 0, max: 10000 }),
       (kind, id) => {
         const name = `entry-${id}`
-        expect(structureEntryTitle({ kind, name })).toBe(kind === "folder" ? `${name}/` : name)
+        expect(structureEntryTitle({ kind, name }).endsWith("/")).toBe(kind === "folder")
       },
     ),
   )

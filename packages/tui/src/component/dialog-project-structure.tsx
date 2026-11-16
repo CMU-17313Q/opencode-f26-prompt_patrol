@@ -7,6 +7,7 @@ import {
   scanProjectTree,
   structureEntryTitle,
   structureLocation,
+  unreadableProjectTreeDirectories,
 } from "@opencode-ai/script/project-structure"
 import { createMemo, createResource, createSignal, onMount } from "solid-js"
 import { useTheme } from "../context/theme"
@@ -33,6 +34,10 @@ export function DialogProjectStructure(props: { root: string }) {
     const tree = listing()?.tree
     return tree ? listStructureLevel(tree, folder()) : []
   })
+  const unreadable = createMemo(() => {
+    const tree = listing()?.tree
+    return tree ? unreadableProjectTreeDirectories(tree) : []
+  })
   const status = createMemo(() => {
     if (listing.loading) return "Loading..."
     if (listing()?.error) return listing()?.error
@@ -54,7 +59,7 @@ export function DialogProjectStructure(props: { root: string }) {
           ]
         : []),
       ...entries().map((entry) => ({
-          title: structureEntryTitle(entry),
+        title: structureEntryTitle(entry),
         description: entry.purpose,
         category,
         value: { kind: entry.kind, path: entry.path },
@@ -79,6 +84,7 @@ export function DialogProjectStructure(props: { root: string }) {
       footer={
         <text>
           {root} - folders open up to {maxStructureDepth} levels deep
+          {unreadable().length ? `; could not read: ${unreadable().join(", ")}` : ""}
         </text>
       }
       renderFilter={false}

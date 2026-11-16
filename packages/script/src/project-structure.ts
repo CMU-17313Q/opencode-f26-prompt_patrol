@@ -1,7 +1,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 
-const ignoredDirectories = new Set(["node_modules", ".git", "dist", "build", "out", ".turbo", ".cache", "coverage"])
+const ignoredNames = new Set(["node_modules", ".git", "dist", "build", "out", ".turbo", ".cache", "coverage"])
 
 const sourceExtensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
 
@@ -74,8 +74,8 @@ export type ProjectSummary = {
 }
 
 /**
- * Recursively lists every file under `root`, skipping common noise directories
- * (node_modules, build output, VCS metadata). Paths are relative to `root`,
+ * Recursively lists every file under `root`, skipping entries with common noise
+ * names (node_modules, build output, VCS metadata). Paths are relative to `root`,
  * use "/" separators, and are returned sorted for deterministic output.
  */
 export async function listProjectFiles(root: string): Promise<string[]> {
@@ -87,7 +87,7 @@ export async function listProjectFiles(root: string): Promise<string[]> {
 async function walk(root: string, relativeDir: string, files: string[]) {
   const entries = await fs.readdir(path.join(root, relativeDir), { withFileTypes: true })
   for (const entry of entries) {
-    if (ignoredDirectories.has(entry.name)) continue
+    if (ignoredNames.has(entry.name)) continue
     const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name
     if (entry.isDirectory()) {
       await walk(root, relativePath, files)
@@ -138,25 +138,62 @@ export type StructureEntry = {
   openable: boolean
 }
 
-/** Scans a repo and returns its full directory tree, skipping the same noise directories as the file scan. */
+const unreadableProjectTreePaths = new WeakMap<ProjectTree, string[]>()
+
+/**
+ * Scans the levels the viewer can open, skipping common noise directories and keeping unreadable folders visible.
+ * Files with the same names are retained here, unlike in `listProjectFiles`.
+ */
 export async function scanProjectTree(root: string): Promise<ProjectTree> {
   const tree: ProjectTree = {}
-  await scanTreeLevel(root, "", tree)
+  const unreadable: string[] = []
+  await scanTreeLevel(root, "", tree, 0, unreadable)
+  unreadableProjectTreePaths.set(tree, unreadable)
   return tree
 }
 
-async function scanTreeLevel(root: string, relativeDir: string, tree: ProjectTree) {
-  const entries = await fs.readdir(path.join(root, relativeDir), { withFileTypes: true })
+export function unreadableProjectTreeDirectories(tree: ProjectTree) {
+  return unreadableProjectTreePaths.get(tree) ?? []
+}
+
+async function scanTreeLevel(
+  root: string,
+  relativeDir: string,
+  tree: ProjectTree,
+  depth: number,
+  unreadable: string[],
+) {
+  const entries = await fs.readdir(path.join(root, relativeDir), { withFileTypes: true }).catch((error: unknown) => {
+    if (relativeDir && isPermissionError(error)) {
+      unreadable.push(relativeDir)
+      return undefined
+    }
+    throw error
+  })
+  if (!entries) return
+
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      if (ignoredDirectories.has(entry.name)) continue
+      if (ignoredNames.has(entry.name)) continue
       const child: ProjectTree = {}
       tree[entry.name] = child
-      await scanTreeLevel(root, relativeDir ? `${relativeDir}/${entry.name}` : entry.name, child)
+      if (depth < maxStructureDepth) {
+        await scanTreeLevel(
+          root,
+          relativeDir ? `${relativeDir}/${entry.name}` : entry.name,
+          child,
+          depth + 1,
+          unreadable,
+        )
+      }
       continue
     }
     if (entry.isFile()) tree[entry.name] = null
   }
+}
+
+function isPermissionError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error && (error.code === "EACCES" || error.code === "EPERM")
 }
 
 /**
