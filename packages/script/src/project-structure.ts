@@ -44,7 +44,8 @@ export const knownDirectoryPurposes: Record<string, string> = {
   ".github": "GitHub Actions workflows and repo automation",
 }
 
-const knownFilePurposes: Record<string, string> = {
+/** Plain-language purpose for common file names, keyed by lowercased name. */
+export const knownFilePurposes: Record<string, string> = {
   "package.json": "Node.js package manifest and dependencies",
   "tsconfig.json": "TypeScript compiler configuration",
   "readme.md": "project overview and usage documentation",
@@ -145,7 +146,7 @@ const unreadableProjectTreePaths = new WeakMap<ProjectTree, string[]>()
  * Files with the same names are retained here, unlike in `listProjectFiles`.
  */
 export async function scanProjectTree(root: string): Promise<ProjectTree> {
-  const tree: ProjectTree = {}
+  const tree = emptyTree()
   const unreadable: string[] = []
   await scanTreeLevel(root, "", tree, 0, unreadable)
   unreadableProjectTreePaths.set(tree, unreadable)
@@ -164,10 +165,13 @@ async function scanTreeLevel(
   unreadable: string[],
 ) {
   const entries = await fs.readdir(path.join(root, relativeDir), { withFileTypes: true }).catch((error: unknown) => {
-    if (relativeDir && isPermissionError(error)) {
+    const code = errorCode(error)
+    if (relativeDir && (code === "EACCES" || code === "EPERM")) {
       unreadable.push(relativeDir)
       return undefined
     }
+    // The dialog shows this message as-is, so a missing project folder must not surface raw ENOENT text.
+    if (!relativeDir && (code === "ENOENT" || code === "ENOTDIR")) throw new Error(`Folder not found: ${root}`)
     throw error
   })
   if (!entries) return
@@ -175,7 +179,7 @@ async function scanTreeLevel(
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (ignoredNames.has(entry.name)) continue
-      const child: ProjectTree = {}
+      const child = emptyTree()
       tree[entry.name] = child
       if (depth < maxStructureDepth) {
         await scanTreeLevel(
@@ -192,8 +196,21 @@ async function scanTreeLevel(
   }
 }
 
-function isPermissionError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error && (error.code === "EACCES" || error.code === "EPERM")
+function errorCode(error: unknown) {
+  return error instanceof Error && "code" in error ? error.code : undefined
+}
+
+// Without a prototype, a folder or file named "__proto__" is stored as a normal entry instead of
+// replacing the tree's prototype and disappearing from the listing.
+function emptyTree(): ProjectTree {
+  return Object.create(null)
+}
+
+// Own-key lookup only, so names like "constructor" don't match properties every object inherits.
+function purposeFor(name: string, kind: StructureEntry["kind"]) {
+  const purposes = kind === "file" ? knownFilePurposes : knownDirectoryPurposes
+  const key = name.toLowerCase()
+  return Object.hasOwn(purposes, key) ? purposes[key] : undefined
 }
 
 /**
@@ -208,12 +225,11 @@ export function listStructureLevel(tree: ProjectTree, folder: readonly string[] 
   return Object.keys(node)
     .map((name): StructureEntry => {
       const kind = node[name] === null ? "file" : "folder"
-      const purposes = kind === "file" ? knownFilePurposes : knownDirectoryPurposes
       return {
         name,
         kind,
         path: [...folder, name],
-        purpose: purposes[name.toLowerCase()],
+        purpose: purposeFor(name, kind),
         openable: kind === "folder" && folder.length < maxStructureDepth,
       }
     })
@@ -226,6 +242,11 @@ export function structureLocation(folder: readonly string[]) {
 
 export function parentStructurePath(folder: readonly string[]) {
   return folder.slice(0, -1)
+}
+
+/** Purposes are guessed from names alone, so the viewer always labels them as guesses. */
+export function structureEntryDescription(entry: Pick<StructureEntry, "purpose">) {
+  return entry.purpose === undefined ? undefined : `likely: ${entry.purpose}`
 }
 
 export function structureEntryTitle(entry: Pick<StructureEntry, "kind" | "name">) {
@@ -266,7 +287,7 @@ function guessTopLevelPurposes(root: ProjectTree): string[] {
   const guesses: string[] = []
   for (const name of Object.keys(root).sort()) {
     const isFile = root[name] === null
-    const purpose = isFile ? knownFilePurposes[name.toLowerCase()] : knownDirectoryPurposes[name.toLowerCase()]
+    const purpose = purposeFor(name, isFile ? "file" : "folder")
     if (!purpose) continue
     guesses.push(`${name}${isFile ? "" : "/"} - ${purpose}`)
   }

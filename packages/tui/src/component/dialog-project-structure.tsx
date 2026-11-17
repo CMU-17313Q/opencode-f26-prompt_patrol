@@ -5,6 +5,7 @@ import {
   maxStructureDepth,
   parentStructurePath,
   scanProjectTree,
+  structureEntryDescription,
   structureEntryTitle,
   structureLocation,
   unreadableProjectTreeDirectories,
@@ -60,7 +61,7 @@ export function DialogProjectStructure(props: { root: string }) {
         : []),
       ...entries().map((entry) => ({
         title: structureEntryTitle(entry),
-        description: entry.purpose,
+        description: structureEntryDescription(entry),
         category,
         value: { kind: entry.kind, path: entry.path },
         onSelect: entry.openable ? () => open(entry.path) : undefined,
