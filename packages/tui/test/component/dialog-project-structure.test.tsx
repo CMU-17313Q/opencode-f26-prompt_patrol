@@ -2,6 +2,7 @@
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { testRender, useRenderer } from "@opentui/solid"
 import { expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 import { onCleanup, onMount } from "solid-js"
@@ -20,7 +21,8 @@ async function wait(fn: () => boolean, timeout = 3000) {
 async function mountStructure(root: string) {
   const state = path.join(root, "state-dir")
   await mkdir(state, { recursive: true })
-  await Bun.write(path.join(state, "kv.json"), "{}")
+  // Keep saved settings between mounts in the same temp dir, so a remount acts like a restart (R1).
+  if (!(await Bun.file(path.join(state, "kv.json")).exists())) await Bun.write(path.join(state, "kv.json"), "{}")
 
   const [
     { DialogProvider, useDialog },
@@ -91,7 +93,7 @@ async function mountStructure(root: string) {
   }
 }
 
-test("project structure dialog opens folders level by level and stops at the depth limit", async () => {
+test("project structure dialog opens folders level by level at any depth", async () => {
   await using tmp = await tmpdir()
   await Bun.write(path.join(tmp.path, "project/README.md"), "# demo")
   await Bun.write(path.join(tmp.path, "project/src/index.ts"), "")
@@ -102,8 +104,9 @@ test("project structure dialog opens folders level by level and stops at the dep
   const view = await mountStructure(tmp.path)
 
   try {
-    // Level 0: top level only, nothing nested yet.
+    // Level 0: top level only, nothing nested yet. Rows: Hidden folders, docs/, src/, zz-empty/, README.md.
     const top = await view.waitFor("README.md")
+    expect(top).toContain("Hidden folders")
     expect(top).toContain("docs/")
     expect(top).toContain("src/")
     expect(top).toContain("zz-empty/")
@@ -112,41 +115,137 @@ test("project structure dialog opens folders level by level and stops at the dep
     expect(top).not.toContain("utils/")
     expect(top).not.toContain("index.ts")
 
-    // Level 1: first row is docs/, move to src/ and open it.
+    // Level 1: open src/. Rows: ../, utils/, index.ts.
+    view.app.mockInput.pressArrow("down")
     view.app.mockInput.pressArrow("down")
     view.app.mockInput.pressEnter()
     const level1 = await view.waitFor("index.ts")
     expect(level1).toContain("../")
-    expect(level1).toContain("src/")
     expect(level1).toContain("utils/")
-    expect(level1).toContain("index.ts")
     expect(level1).not.toContain("index.ts/")
     expect(level1).not.toContain("README.md")
 
-    // Level 2: ../ is first, then utils/ (folders first), open utils/.
+    // Level 2: open utils/. Rows: ../, Back to project root, deep/, format.ts.
     view.app.mockInput.pressArrow("down")
     view.app.mockInput.pressEnter()
     const level2 = await view.waitFor("format.ts")
     expect(level2).toContain("deep/")
 
-    // deep/ is at the depth limit: selecting it must not navigate.
+    // Level 3: deep/ opens too (no depth limit, R4).
+    view.app.mockInput.pressArrow("down")
     view.app.mockInput.pressArrow("down")
     view.app.mockInput.pressEnter()
-    const stillLevel2 = await view.frame()
-    expect(stillLevel2).toContain("format.ts")
-    expect(stillLevel2).not.toContain("leaf.ts")
+    const level3 = await view.waitFor("leaf.ts")
+    expect(level3).not.toContain("format.ts")
 
-    // ../ goes back up one level to src/.
-    view.app.mockInput.pressArrow("up")
+    // ../ goes back up one level to utils/.
     view.app.mockInput.pressEnter()
-    const back = await view.waitFor("index.ts")
-    const srcEntries = ["utils/", "index.ts"]
-    expect(srcEntries.filter((entry) => level1.includes(entry))).toEqual(srcEntries)
-    expect(srcEntries.filter((entry) => back.includes(entry))).toEqual(srcEntries)
-    expect(back).not.toContain("format.ts")
-    expect(back).not.toContain("README.md")
+    const back = await view.waitFor("format.ts")
+    expect(back).toContain("deep/")
+    expect(back).not.toContain("leaf.ts")
   } finally {
     view.cleanup()
+  }
+})
+
+test("R3: going back with ../ highlights the folder just left", async () => {
+  // R3: Opening a folder and then selecting ../ shows the same entries as before, with the folder just left
+  // highlighted. The highlight is checked through Enter: it must reopen src/, not another row.
+  await using tmp = await tmpdir()
+  await Bun.write(path.join(tmp.path, "project/README.md"), "# demo")
+  await Bun.write(path.join(tmp.path, "project/docs/guide.md"), "")
+  await Bun.write(path.join(tmp.path, "project/src/index.ts"), "")
+  const view = await mountStructure(tmp.path)
+
+  try {
+    const top = await view.waitFor("README.md")
+    view.app.mockInput.pressArrow("down")
+    view.app.mockInput.pressArrow("down")
+    view.app.mockInput.pressEnter()
+    await view.waitFor("index.ts")
+
+    // Opening a folder highlights its first row, ../
+    view.app.mockInput.pressEnter()
+    expect(await view.waitFor("README.md")).toBe(top)
+
+    view.app.mockInput.pressEnter()
+    const reopened = await view.waitFor("../")
+    expect(reopened).toContain("index.ts")
+    expect(reopened).not.toContain("guide.md")
+  } finally {
+    view.cleanup()
+  }
+})
+
+test("R4: Back to project root appears two levels deep and opens the root", async () => {
+  // R4: At 2+ levels deep, the list shows ../ and "Back to project root". At 1 level deep, only ../ ("Up to
+  // project root").
+  await using tmp = await tmpdir()
+  await Bun.write(path.join(tmp.path, "project/README.md"), "# demo")
+  await Bun.write(path.join(tmp.path, "project/packages/tui/index.ts"), "")
+  const view = await mountStructure(tmp.path)
+
+  try {
+    await view.waitFor("README.md")
+    view.app.mockInput.pressArrow("down")
+    view.app.mockInput.pressEnter()
+    const oneDeep = await view.waitFor("tui/")
+    expect(oneDeep).toContain("Up to project root")
+    expect(oneDeep).not.toContain("Back to project root")
+
+    view.app.mockInput.pressArrow("down")
+    view.app.mockInput.pressEnter()
+    const twoDeep = await view.waitFor("index.ts")
+    expect(twoDeep).toContain("../")
+    expect(twoDeep).toContain("Back to project root")
+
+    view.app.mockInput.pressArrow("down")
+    view.app.mockInput.pressEnter()
+    const root = await view.waitFor("README.md")
+    expect(root).toContain("packages/")
+    expect(root).not.toContain("index.ts")
+  } finally {
+    view.cleanup()
+  }
+})
+
+test("R1: the Hidden folders menu shows hidden folders and the choice survives a restart", async () => {
+  // R1: By default node_modules and the other build/VCS folders are hidden. A "Hidden folders" menu lets the user
+  // toggle each name or "Show all folders". The choice is saved across restarts.
+  await using tmp = await tmpdir()
+  await Bun.write(path.join(tmp.path, "project/node_modules/x.js"), "")
+  await Bun.write(path.join(tmp.path, "project/src/index.ts"), "")
+  const first = await mountStructure(tmp.path)
+
+  try {
+    const top = await first.waitFor("src/")
+    expect(top).toContain("8 hidden")
+    expect(top).not.toContain("node_modules/")
+
+    // Hidden folders is the first row; open it and turn on "Show all folders".
+    first.app.mockInput.pressEnter()
+    await first.waitFor("Show all folders")
+    first.app.mockInput.pressArrow("down")
+    first.app.mockInput.pressEnter()
+    await first.waitFor("[x] Show all folders")
+
+    // ../ goes back to the structure view, which now lists node_modules/.
+    first.app.mockInput.pressArrow("up")
+    first.app.mockInput.pressEnter()
+    expect(await first.waitFor("node_modules/")).toContain("showing all folders")
+    await wait(() =>
+      readFileSync(path.join(tmp.path, "state-dir/kv.json"), "utf8").includes("project_structure_hidden_folders"),
+    )
+  } finally {
+    first.cleanup()
+  }
+
+  // Reopening (a fresh TUI on the same saved settings) keeps the choice.
+  const second = await mountStructure(tmp.path)
+  try {
+    expect(await second.waitFor("node_modules/")).toContain("showing all folders")
+  } finally {
+    second.cleanup()
   }
 })
 
