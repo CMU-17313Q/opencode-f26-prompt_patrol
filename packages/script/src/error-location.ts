@@ -66,3 +66,56 @@ function parseJavaScriptError(output: string): ParsedError | undefined {
     column: locationMatch ? Number(locationMatch[3]) : undefined,
   }
 }
+
+const locationPattern = /at\s+(?:.*?\()?(?:file:\/\/)?([^\s()]+\.(?:[mc]?[jt]s|[jt]sx)):(\d+):(\d+)\)?/
+
+/**
+ * Returns every error found in captured output, in the order they appear, each
+ * with its own type and location. Returns an empty array when the output holds
+ * no recognized error. (`parseErrorLocation` keeps returning only the first.)
+ */
+export function parseAllErrors(output: string): ParsedError[] {
+  const found: Array<{ index: number; error: ParsedError }> = []
+
+  for (const match of output.matchAll(/([^\s():]+\.tsx?)\((\d+),(\d+)\):\s*error\s+(TS\d+):/g)) {
+    const [, file, line, column, code] = match
+    found.push({
+      index: match.index!,
+      error: { language: "typescript", type: code, file, line: Number(line), column: Number(column) },
+    })
+  }
+
+  const starts = [...output.matchAll(/^(\w*Error):/gm)]
+  starts.forEach((start, i) => {
+    // Each error's location is searched only within its own block, up to the next error line.
+    const from = start.index! + start[0].length
+    const block = output.slice(from, starts[i + 1]?.index ?? output.length)
+    const at = block.match(locationPattern)
+    found.push({
+      index: start.index!,
+      error: {
+        language: "javascript",
+        type: start[1],
+        file: at?.[1],
+        line: at ? Number(at[2]) : undefined,
+        column: at ? Number(at[3]) : undefined,
+      },
+    })
+  })
+
+  return found.sort((a, b) => a.index - b.index).map((entry) => entry.error)
+}
+
+/** One-line description of a parsed error; says so explicitly when no location was found. */
+export function describeParsedError(error: ParsedError): string {
+  if (error.file === undefined || error.line === undefined || error.column === undefined) {
+    return `${error.type} (Location not found)`
+  }
+  return `${error.type} at ${error.file}:${error.line}:${error.column}`
+}
+
+/** Description of all parsed errors; says explicitly when none were detected. */
+export function describeParsedErrors(errors: ParsedError[]): string {
+  if (errors.length === 0) return "No errors detected"
+  return errors.map(describeParsedError).join("\n")
+}
