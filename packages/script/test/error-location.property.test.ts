@@ -140,7 +140,7 @@ test("R3: the location comes only from the current output and the same output gi
 
       expect(second).toHaveLength(1)
       expect(second[0].line).toBe(at.line + delta)
-      expect({ ...second[0], line: first[0].line }).toEqual(first[0])
+      expect({ ...second[0], line: first[0].line } as ParsedError).toEqual(first[0])
       expect(third).toEqual(first)
     }),
   )
