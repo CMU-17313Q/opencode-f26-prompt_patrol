@@ -77,11 +77,11 @@ test("R2: rescanning shows new folders and files under their actual parent", asy
   )
 })
 
-test("R3: navigating up one level returns the immediate parent", () => {
+test("R3: navigating up one level returns the immediate parent", async () => {
   // R3: Navigating back from a folder must return the user to its immediate parent directory.
   // Kind: round-trip. Generate a project hierarchy, inspect a child level, then verify
   // returning to the parent lists the exact same entries as before opening the child.
-  assert(
+  await assert(
     asyncProperty(
       array(constantFrom("src", "packages", "models", "utils"), { maxLength: maxStructureDepth - 1 }),
       async (parent) => {
