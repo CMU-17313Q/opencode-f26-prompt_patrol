@@ -14,7 +14,7 @@
 | R6 | S-11: "Is this a reference to a specific error type? Type mismatch?" | Each result includes the error's message text alongside its type or code. | With output "broken.ts(1,7): error TS2322: Type mismatch", the result includes message "Type mismatch" as well as type TS2322. With "TypeError: boom\n    at file:///tmp/broken.js:3:7", the message is "boom". | No | — (not selected for the fast-check properties; not implemented yet) | — |
 | R7 | S-8, S-12: "I want to see it explicitly, so I know it ran and there were no issues" | When the output contains no recognizable error, the parser returns an empty list and the result is described as "No errors detected". | With output "Build succeeded\n0 errors", `parseAllErrors` returns `[]` rather than a bare undefined, and `describeParsedErrors` returns "No errors detected". | Yes | Invariant | `packages/script/test/error-location.property.test.ts` — `R7: output with no recognizable error yields an empty result and an explicit message` |
 
-Properties written or suggested by opencode or another AI tool: <fill in before submitting>
+Properties written or suggested by opencode or another AI tool: R1, R2, R3, R4, R5, R7 (AI-assisted; I reviewed each property and verified they pass and fail correctly).
 
 ## Requirement changes
 
