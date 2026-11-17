@@ -3,6 +3,9 @@ import path from "node:path"
 
 const ignoredNames = new Set(["node_modules", ".git", "dist", "build", "out", ".turbo", ".cache", "coverage"])
 
+/** Folders hidden from the structure view unless the user turns them back on (R1). */
+export const defaultHiddenFolders: readonly string[] = [...ignoredNames]
+
 const sourceExtensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
 
 /** Plain-language purpose for common directory names, keyed by lowercased name. */
@@ -44,7 +47,7 @@ export const knownDirectoryPurposes: Record<string, string> = {
   ".github": "GitHub Actions workflows and repo automation",
 }
 
-const knownFilePurposes: Record<string, string> = {
+export const knownFilePurposes: Record<string, string> = {
   "package.json": "Node.js package manifest and dependencies",
   "tsconfig.json": "TypeScript compiler configuration",
   "readme.md": "project overview and usage documentation",
@@ -145,7 +148,7 @@ const unreadableProjectTreePaths = new WeakMap<ProjectTree, string[]>()
  * Files with the same names are retained here, unlike in `listProjectFiles`.
  */
 export async function scanProjectTree(root: string): Promise<ProjectTree> {
-  const tree: ProjectTree = {}
+  const tree = emptyProjectTree()
   const unreadable: string[] = []
   await scanTreeLevel(root, "", tree, 0, unreadable)
   unreadableProjectTreePaths.set(tree, unreadable)
@@ -175,7 +178,7 @@ async function scanTreeLevel(
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (ignoredNames.has(entry.name)) continue
-      const child: ProjectTree = {}
+      const child = emptyProjectTree()
       tree[entry.name] = child
       if (depth < maxStructureDepth) {
         await scanTreeLevel(
@@ -192,6 +195,12 @@ async function scanTreeLevel(
   }
 }
 
+// Tree nodes are keyed by file names, so they must not inherit Object.prototype: on a plain object a file or
+// folder named `__proto__` would replace the node's prototype instead of being added as an entry.
+function emptyProjectTree(): ProjectTree {
+  return Object.create(null)
+}
+
 function isPermissionError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error && (error.code === "EACCES" || error.code === "EPERM")
 }
@@ -202,22 +211,38 @@ function isPermissionError(error: unknown): error is NodeJS.ErrnoException {
  * that does not exist or points at a file.
  */
 export function listStructureLevel(tree: ProjectTree, folder: readonly string[] = []): StructureEntry[] {
-  const node = folder.reduce<ProjectTree | null | undefined>((current, name) => current?.[name], tree)
+  const node = folder.reduce<ProjectTree | null | undefined>(
+    (current, name) => (current && Object.hasOwn(current, name) ? current[name] : undefined),
+    tree,
+  )
   if (!node) return []
+  return structureEntries(node, folder, folder.length < maxStructureDepth)
+}
 
+/** Labels and sorts one folder's entries: folders first, then files, each in case-insensitive name order. */
+function structureEntries(node: ProjectTree, folder: readonly string[], foldersOpenable: boolean): StructureEntry[] {
   return Object.keys(node)
     .map((name): StructureEntry => {
       const kind = node[name] === null ? "file" : "folder"
       const purposes = kind === "file" ? knownFilePurposes : knownDirectoryPurposes
+      // Own keys only: names like `constructor` or `toString` must not pick up Object.prototype members as labels.
+      const key = name.toLowerCase()
       return {
         name,
         kind,
         path: [...folder, name],
-        purpose: purposes[name.toLowerCase()],
-        openable: kind === "folder" && folder.length < maxStructureDepth,
+        purpose: Object.hasOwn(purposes, key) ? purposes[key] : undefined,
+        openable: kind === "folder" && foldersOpenable,
       }
     })
-    .sort((a, b) => (a.kind === b.kind ? (a.name < b.name ? -1 : 1) : a.kind === "folder" ? -1 : 1))
+    .sort((a, b) => (a.kind === b.kind ? compareNames(a.name, b.name) : a.kind === "folder" ? -1 : 1))
+}
+
+// Case-insensitive name order; names that differ only in case fall back to character-code order.
+function compareNames(a: string, b: string) {
+  const lower = [a.toLowerCase(), b.toLowerCase()]
+  if (lower[0] !== lower[1]) return lower[0] < lower[1] ? -1 : 1
+  return a < b ? -1 : a > b ? 1 : 0
 }
 
 export function structureLocation(folder: readonly string[]) {
@@ -226,6 +251,46 @@ export function structureLocation(folder: readonly string[]) {
 
 export function parentStructurePath(folder: readonly string[]) {
   return folder.slice(0, -1)
+}
+
+/**
+ * Reads one folder of the project (the root when empty), at any depth, leaving out `hidden` folder names.
+ * Only this folder is read, so opening the view costs the same however large the project is. Returns nothing
+ * for a path that does not exist or points at a file.
+ */
+export async function listProjectFolder(
+  root: string,
+  folder: readonly string[] = [],
+  hidden: readonly string[] = defaultHiddenFolders,
+): Promise<StructureEntry[]> {
+  const entries = await fs.readdir(path.join(root, ...folder), { withFileTypes: true }).catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR")) return []
+    throw error
+  })
+  const node = emptyProjectTree()
+  for (const entry of entries) {
+    if (entry.isDirectory() && !hidden.includes(entry.name)) node[entry.name] = emptyProjectTree()
+    if (entry.isFile()) node[entry.name] = null
+  }
+  return structureEntries(node, folder, true)
+}
+
+/** Rows shown above a folder's entries: `../` one level up and, from two levels deep, "Back to project root". */
+export function structureNavigationRows(folder: readonly string[]) {
+  if (!folder.length) return []
+  const up = parentStructurePath(folder)
+  const parent = { title: "../", description: up.length ? `Up to ${up.join("/")}/` : "Up to project root", path: up }
+  if (folder.length < 2) return [parent]
+  return [parent, { title: "Back to project root", description: "Jump to the top level", path: [] }]
+}
+
+/**
+ * The entry to highlight after moving from `from` to `to`. Moving up highlights the folder the user came out of;
+ * otherwise undefined, and the list starts at its first row.
+ */
+export function structureHighlightAfterMove(from: readonly string[], to: readonly string[]) {
+  if (from.length <= to.length || !to.every((name, i) => from[i] === name)) return undefined
+  return from.slice(0, to.length + 1)
 }
 
 export function structureEntryTitle(entry: Pick<StructureEntry, "kind" | "name">) {

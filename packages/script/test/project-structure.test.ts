@@ -132,9 +132,9 @@ describe("project structure navigation", () => {
     expect(entries.map((entry) => `${entry.kind}:${entry.name}`)).toEqual([
       "folder:docs",
       "folder:src",
-      // Same plain character ordering as the existing tree, so uppercase names come first.
-      "file:README.md",
+      // Case-insensitive order (R2 in traceability/relghali.md), so package.json comes before README.md.
       "file:package.json",
+      "file:README.md",
     ])
   })
 
